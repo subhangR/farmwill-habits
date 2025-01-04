@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "698238504542",
+    "project_id": "farmwill-habits",
+    "storage_bucket": "farmwill-habits.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:698238504542:android:d4272a72e72d1ee1c22ecf",
+        "android_client_info": {
+          "package_name": "com.example.farmwill_habits"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVO9fK12e08HCgQnox1I_T2LcYHDNRxak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
