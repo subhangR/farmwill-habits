@@ -1,8 +1,9 @@
-import 'package:farmwill_habits/views/habits/user_habits_day_page.dart';
-import 'package:farmwill_habits/views/habits/user_habits_page.dart';
+import 'package:farmwill_habits/views/unused/today_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
-import '../views/habits/user_habits_insights_page.dart';
+import '../views/habits/habit_list_screen.dart';
+import '../views/unused/history_page.dart';
+import '../views/habits/widgets/habit_card.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -19,7 +20,7 @@ final mainRouterV2 = GoRouter(
             routes: <RouteBase>[
               GoRoute(
                 path: '/today',
-                builder: (context, state) => UserHabitsDayPage(),
+                builder: (context, state) => HabitListScreen(),
               ),
             ]),
         // StatefulShellBranch(
@@ -32,15 +33,8 @@ final mainRouterV2 = GoRouter(
         StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/habits',
-                builder: (context, state) => UserHabitsPage(),
-              ),
-            ]),
-        StatefulShellBranch(
-            routes: <RouteBase>[
-              GoRoute(
-                path: '/insights',
-                builder: (context, state) => UserHabitsInsightsPage(),
+                path: '/history',
+                builder: (context, state) => HistoryPage(),
               ),
             ]),
       ],
@@ -97,17 +91,16 @@ class MagicalNavigationBar extends StatelessWidget {
             children: [
               _buildNavItem(Icons.room, 'Today', 0),
               // _buildNavItem(Icons.search, 'solve', 1),
-              _buildNavItem(Icons.pan_tool_sharp, 'Habits', 1),
-              _buildNavItem(Icons.library_books, 'Insights', 2),
+              _buildNavItem(Icons.library_books, 'Insights', 1),
             ],
           ),
           AnimatedPositioned(
             duration: Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            left: MediaQuery.of(context).size.width / 3 * currentIndex,
+            left: MediaQuery.of(context).size.width / 2 * currentIndex,
             bottom: 0,
             child: Container(
-              width: MediaQuery.of(context).size.width / 3,
+              width: MediaQuery.of(context).size.width / 2,
               height: 4,
               decoration: BoxDecoration(
                 color: Colors.blue,

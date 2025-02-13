@@ -1,4 +1,6 @@
 // Enums for different types and states
+import 'package:flutter/material.dart';
+
 enum HabitType {
   regular,
   oneTime,
@@ -108,18 +110,18 @@ enum LogEventType {
 
 
 class UserMonthLog {
-  final DateTime date;
+  final String monthKey;
   final Map<String,UserDayLog> days;
 
   const UserMonthLog({
-    required this.date,
+    required this.monthKey,
     required this.days,
   });
 
   // Convert to Map for storing in NoSQL
   Map<String, dynamic> toMap() {
     return {
-      'date': date.toIso8601String(),
+      'monthKey': monthKey,
       'days':  days.map((key, value) => MapEntry(key, value.toMap())),
     };
   }
@@ -127,7 +129,7 @@ class UserMonthLog {
   // Create from Map when fetching from NoSQL
   factory UserMonthLog.fromMap(Map<String, dynamic> map) {
     return UserMonthLog(
-      date: DateTime.parse(map['date']),
+      monthKey: map['monthKey'] ?? '',
       days:
         (map['days'] as Map<String, dynamic>).map((key, value) => MapEntry(key, UserDayLog.fromMap(value))),
     );
@@ -135,21 +137,111 @@ class UserMonthLog {
 }
 
 
-//table
+class HabitData {
+  final int reps;
+  final int duration; // in minutes
+  final int willObtained;
+  final int targetReps;
+  final int targetDuration;
+  final int targetWill;
+  final int willPerRep;
+  final int willPerDuration; // will per minute
+  final int maxWill;
+  final int startingWill;
+  final bool isCompleted;
+
+  const HabitData({
+    this.reps = 0,
+    this.duration = 0,
+    this.willObtained = 0,
+    required this.targetReps,
+    required this.targetDuration,
+    required this.targetWill,
+    required this.willPerRep,
+    required this.willPerDuration,
+    required this.maxWill,
+    required this.startingWill,
+    this.isCompleted = false,
+  });
+
+  // Convert to Map for storing in NoSQL
+  Map<String, dynamic> toMap() {
+    return {
+      'reps': reps,
+      'duration': duration,
+      'willObtained': willObtained,
+      'targetReps': targetReps,
+      'targetDuration': targetDuration,
+      'targetWill': targetWill,
+      'willPerRep': willPerRep,
+      'willPerDuration': willPerDuration,
+      'maxWill': maxWill,
+      'startingWill': startingWill,
+      'isCompleted': isCompleted,
+    };
+  }
+
+  // Create from Map when fetching from NoSQL
+  factory HabitData.fromMap(Map<String, dynamic> map) {
+    return HabitData(
+      reps: map['reps'] ?? 0,
+      duration: map['duration'] ?? 0,
+      willObtained: map['willObtained'] ?? 0,
+      targetReps: map['targetReps'] ?? 0,
+      targetDuration: map['targetDuration'] ?? 0,
+      targetWill: map['targetWill'] ?? 0,
+      willPerRep: map['willPerRep'] ?? 0,
+      willPerDuration: map['willPerDuration'] ?? 0,
+      maxWill: map['maxWill'] ?? 0,
+      startingWill: map['startingWill'] ?? 0,
+      isCompleted: map['isCompleted'] ?? false,
+    );
+  }
+
+  // Create a copy with some fields updated
+  HabitData copyWith({
+    int? reps,
+    int? duration,
+    int? willObtained,
+    int? targetReps,
+    int? targetDuration,
+    int? targetWill,
+    int? willPerRep,
+    int? willPerDuration,
+    int? maxWill,
+    int? startingWill,
+    bool? isCompleted,
+  }) {
+    return HabitData(
+      reps: reps ?? this.reps,
+      duration: duration ?? this.duration,
+      willObtained: willObtained ?? this.willObtained,
+      targetReps: targetReps ?? this.targetReps,
+      targetDuration: targetDuration ?? this.targetDuration,
+      targetWill: targetWill ?? this.targetWill,
+      willPerRep: willPerRep ?? this.willPerRep,
+      willPerDuration: willPerDuration ?? this.willPerDuration,
+      maxWill: maxWill ?? this.maxWill,
+      startingWill: startingWill ?? this.startingWill,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+}
+
 class UserDayLog {
   final DateTime date;
-  final List<UserHabitLog> logs;
+  final Map<String, HabitData> habits; // Map of habitId to HabitData
 
   const UserDayLog({
     required this.date,
-    required this.logs,
+    required this.habits,
   });
 
   // Convert to Map for storing in NoSQL
   Map<String, dynamic> toMap() {
     return {
       'date': date.toIso8601String(),
-      'logs': logs.map((log) => log.toMap()).toList(),
+      'habits': habits.map((key, value) => MapEntry(key, value.toMap())),
     };
   }
 
@@ -157,226 +249,156 @@ class UserDayLog {
   factory UserDayLog.fromMap(Map<String, dynamic> map) {
     return UserDayLog(
       date: DateTime.parse(map['date']),
-      logs: (map['logs'] as List<dynamic>)
-          .map((logMap) => UserHabitLog.fromMap(logMap))
-          .toList(),
+      habits: (map['habits'] as Map<String, dynamic>).map(
+            (key, value) => MapEntry(key, HabitData.fromMap(value)),
+      ),
     );
   }
 
+  // Create a copy with some fields updated
+  UserDayLog copyWith({
+    DateTime? date,
+    Map<String, HabitData>? habits,
+  }) {
+    return UserDayLog(
+      date: date ?? this.date,
+      habits: habits ?? this.habits,
+    );
+  }
 }
 
-class UserHabitLog {
-  final String id;
+class UserHabitStatus {
   final String habitId;
-  final String uid;
-  final LogEventType eventType;
-  final DateTime timestamp; // For click events or start time for time-tracked events
-  final DateTime? endTimestamp; // Only for time-tracked events
-  final String? note;
-  final double? value; // Progress value (reps completed or minutes)
+  final DateTime date;
+  final bool completed;
+  final double progress; // Progress towards goal
 
-  const UserHabitLog({
-    required this.id,
+  const UserHabitStatus({
     required this.habitId,
-    required this.uid,
-    required this.eventType,
-    required this.timestamp,
-    this.endTimestamp,
-    this.note,
-    this.value,
+    required this.date,
+    required this.completed,
+    required this.progress,
   });
-
-  // Calculate duration for time-tracked events
-  Duration? getDuration() {
-    if (eventType == LogEventType.timeTracked && endTimestamp != null) {
-      return endTimestamp!.difference(timestamp);
-    }
-    return null;
-  }
 
   // Convert to Map for storing in NoSQL
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
       'habitId': habitId,
-      'uid': uid,
-      'eventType': eventType.toString(),
-      'timestamp': timestamp.toIso8601String(),
-      'endTimestamp': endTimestamp?.toIso8601String(),
-      'note': note,
-      'value': value,
+      'date': date.toIso8601String(),
+      'completed': completed,
+      'progress': progress,
     };
   }
 
   // Create from Map when fetching from NoSQL
-  factory UserHabitLog.fromMap(Map<String, dynamic> map) {
-    return UserHabitLog(
-      id: map['id'] ?? '',
+  factory UserHabitStatus.fromMap(Map<String, dynamic> map) {
+    return UserHabitStatus(
       habitId: map['habitId'] ?? '',
-      uid: map['uid'] ?? '',
-      eventType: LogEventType.values.firstWhere(
-            (e) => e.toString() == map['eventType'],
-        orElse: () => LogEventType.click,
-      ),
-      timestamp: DateTime.parse(map['timestamp']),
-      endTimestamp: map['endTimestamp'] != null
-          ? DateTime.parse(map['endTimestamp'])
-          : null,
-      note: map['note'],
-      value: map['value']?.toDouble(),
-    );
-  }
-
-  // Create a copy of UserHabitLog with some fields updated
-  UserHabitLog copyWith({
-    String? id,
-    String? habitId,
-    String? uid,
-    LogEventType? eventType,
-    DateTime? timestamp,
-    DateTime? endTimestamp,
-    String? note,
-    double? value,
-  }) {
-    return UserHabitLog(
-      id: id ?? this.id,
-      habitId: habitId ?? this.habitId,
-      uid: uid ?? this.uid,
-      eventType: eventType ?? this.eventType,
-      timestamp: timestamp ?? this.timestamp,
-      endTimestamp: endTimestamp ?? this.endTimestamp,
-      note: note ?? this.note,
-      value: value ?? this.value,
+      date: DateTime.parse(map['date']),
+      completed: map['completed'] ?? false,
+      progress: map['progress']?.toDouble() ?? 0,
     );
   }
 }
-
 //table
 // Main UserHabit class
+
+
 class UserHabit {
-  final String uid; // User ID
-  final String id; // Habit ID
+  final String uid;
+  final String id;
   final String name;
   final HabitType habitType;
-  final HabitNature nature; // positive or negative
-  final double scorePerUnit; // score per rep or per minute
-  final FrequencyType frequencyType;
-  final WeeklySchedule? weeklySchedule; // null if frequency is daily
-  final HabitGoal? goal; // optional goal
+  final HabitNature nature;
+  final int? scorePerRep;
+  final int? scorePerMinute;
+  final WeeklySchedule? weeklySchedule;
   final DateTime createdAt;
-  final DateTime? completedAt; // for one-time habits
+  final DateTime? completedAt;
   final bool isArchived;
+  final IconData habitIcon;  // New field for habit icon
+  int targetReps;
+  int? targetMinutes = 5;
+  int? maxScore = 0;
+  int? startingWill = 0;
 
-  const UserHabit({
+  UserHabit({
     required this.uid,
     required this.id,
     required this.name,
     required this.habitType,
     required this.nature,
-    required this.scorePerUnit,
-    required this.frequencyType,
     this.weeklySchedule,
-    this.goal,
     required this.createdAt,
     this.completedAt,
+    this.scorePerMinute,
+    this.scorePerRep,
+    this.targetReps = 1,
+    this.targetMinutes,
+    this.maxScore,
+    this.startingWill,
     this.isArchived = false,
+    this.habitIcon = Icons.check_circle,  // Default icon
   });
 
-  // Calculate current score based on progress
-  double calculateCurrentScore() {
-    if (goal == null) return 0;
-
-    double baseScore = nature == HabitNature.positive
-        ? scorePerUnit
-        : -scorePerUnit.abs();
-
-    if (goal!.type == GoalType.repetitions) {
-      return baseScore * goal!.progress;
-    } else {
-      // For duration goals, progress is in minutes
-      return baseScore * goal!.progress;
-    }
-  }
-
-  // Convert to Map for storing in NoSQL
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
       'id': id,
       'name': name,
-      'habitType': habitType.toString(),
-      'nature': nature.toString(),
-      'scorePerUnit': scorePerUnit,
-      'frequencyType': frequencyType.toString(),
+      'habitType': habitType.name,
+      'nature': nature.name,
       'weeklySchedule': weeklySchedule?.toMap(),
-      'goal': goal?.toMap(),
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'isArchived': isArchived,
+      'scorePerRep': scorePerRep,
+      'scorePerMinute': scorePerMinute,
+      'targetReps': targetReps,
+      'targetMinutes': targetMinutes,
+      'maxScore': maxScore,
+      'startingWill': startingWill,
+      'habitIcon': {
+        'codePoint': habitIcon.codePoint,
+        'fontFamily': habitIcon.fontFamily,
+        'fontPackage': habitIcon.fontPackage,
+      },
     };
   }
 
-  // Create from Map when fetching from NoSQL
+  // Update fromMap to handle all fields properly
   factory UserHabit.fromMap(Map<String, dynamic> map) {
     return UserHabit(
       uid: map['uid'] ?? '',
       id: map['id'] ?? '',
       name: map['name'] ?? '',
       habitType: HabitType.values.firstWhere(
-            (e) => e.toString() == map['habitType'],
+            (e) => e.toString() == 'HabitType.${map['habitType']}',
         orElse: () => HabitType.regular,
       ),
       nature: HabitNature.values.firstWhere(
-            (e) => e.toString() == map['nature'],
+            (e) => e.toString() == 'HabitNature.${map['nature']}',
         orElse: () => HabitNature.positive,
-      ),
-      scorePerUnit: map['scorePerUnit']?.toDouble() ?? 1.0,
-      frequencyType: FrequencyType.values.firstWhere(
-            (e) => e.toString() == map['frequencyType'],
-        orElse: () => FrequencyType.daily,
       ),
       weeklySchedule: map['weeklySchedule'] != null
           ? WeeklySchedule.fromMap(map['weeklySchedule'])
-          : null,
-      goal: map['goal'] != null
-          ? HabitGoal.fromMap(map['goal'])
           : null,
       createdAt: DateTime.parse(map['createdAt']),
       completedAt: map['completedAt'] != null
           ? DateTime.parse(map['completedAt'])
           : null,
       isArchived: map['isArchived'] ?? false,
-    );
-  }
-
-  // Create a copy of UserHabit with some fields updated
-  UserHabit copyWith({
-    String? uid,
-    String? id,
-    String? name,
-    HabitType? habitType,
-    HabitNature? nature,
-    double? scorePerUnit,
-    FrequencyType? frequencyType,
-    WeeklySchedule? weeklySchedule,
-    HabitGoal? goal,
-    DateTime? createdAt,
-    DateTime? completedAt,
-    bool? isArchived,
-  }) {
-    return UserHabit(
-      uid: uid ?? this.uid,
-      id: id ?? this.id,
-      name: name ?? this.name,
-      habitType: habitType ?? this.habitType,
-      nature: nature ?? this.nature,
-      scorePerUnit: scorePerUnit ?? this.scorePerUnit,
-      frequencyType: frequencyType ?? this.frequencyType,
-      weeklySchedule: weeklySchedule ?? this.weeklySchedule,
-      goal: goal ?? this.goal,
-      createdAt: createdAt ?? this.createdAt,
-      completedAt: completedAt ?? this.completedAt,
-      isArchived: isArchived ?? this.isArchived,
+      scorePerRep: map['scorePerRep'],
+      scorePerMinute: map['scorePerMinute'],
+      targetReps: map['targetReps'] ?? 1,
+      targetMinutes: map['targetMinutes'] ?? 5,
+      maxScore: map['maxScore'],
+      startingWill: map['startingWill'],
+      habitIcon: IconData(
+        map['habitIcon']?['codePoint'] as int? ?? Icons.check_circle.codePoint,
+        fontFamily: map['habitIcon']?['fontFamily'] as String? ?? 'MaterialIcons',
+        fontPackage: map['habitIcon']?['fontPackage'] as String?,
+      ),
     );
   }
 }

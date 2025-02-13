@@ -3,15 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/habits.dart';
 
 class HabitsRepository {
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Collection references
   static const String _userHabitsCollection = 'user_habits';
   static const String _monthLogsCollection = 'month_logs';
-  static const String _usersCollection = 'users';
 
-  HabitsRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+
 
   // Create a new habit
   Future<void> createHabit(String userId, UserHabit habit) async {
@@ -21,7 +19,7 @@ class HabitsRepository {
           .collection(_userHabitsCollection)
           .doc(userId)
           .set({
-        'habits.${habit.id}': habit.toMap()
+        '${habit.id}': habit.toMap()
       }, SetOptions(merge: true));
     } catch (e) {
       throw Exception('Failed to create habit: $e');
@@ -65,16 +63,87 @@ class HabitsRepository {
           .get();
 
       if (!userHabitsDoc.exists) {
+        print("No User Habits Document Foujnd!");
         return [];
       }
 
-      final habits = userHabitsDoc.data()?['habits'] as Map<String, dynamic>? ?? {};
+      final habits = userHabitsDoc.data() as Map<String, dynamic>? ?? {};
 
       return habits.values
           .map((habitMap) => UserHabit.fromMap(habitMap))
           .toList();
     } catch (e) {
       throw Exception('Failed to get habits: $e');
+    }
+  }
+  Future<void> updateHabitData({
+    required String habitId,
+    required String userId,
+    required HabitData habitData,
+    required DateTime date,
+  }) async {
+    try {
+      // Get the formatted date string for the document ID
+      final String monthKey = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+      final String dayKey = date.day.toString().padLeft(2, '0');
+      final String docId = '$userId-$monthKey';
+
+      // Reference to the user's monthly log document
+      final docRef = _firestore
+          .collection('habit_logs')
+          .doc(docId);
+
+
+      final docSnapshot = await docRef.get();
+
+      if (docSnapshot.exists) {
+        print(monthKey);
+
+        // Get existing data
+        final monthLog = UserMonthLog.fromMap(docSnapshot.data()!);
+        final updatedDays = Map<String, UserDayLog>.from(monthLog.days);
+
+        // Update or create day log
+        if (updatedDays.containsKey(dayKey)) {
+          final dayLog = updatedDays[dayKey]!;
+          final updatedHabits = Map<String, HabitData>.from(dayLog.habits);
+          updatedHabits[habitId] = habitData;
+
+          updatedDays[dayKey] = UserDayLog(
+            date: dayLog.date,
+            habits: updatedHabits,
+          );
+        } else {
+          updatedDays[dayKey] = UserDayLog(
+            date: date,
+            habits: {habitId: habitData},
+          );
+        }
+
+        // Simple update
+        await docRef.update({
+          'days': updatedDays.map((key, value) => MapEntry(key, value.toMap())),
+        });
+      } else {
+        // Create new month log if it doesn't exist
+
+        final newMonthLog = UserMonthLog(
+          monthKey: monthKey,
+          days: {
+            dayKey: UserDayLog(
+              date: date,
+              habits: {habitId: habitData},
+            ),
+          },
+        );
+
+        print(newMonthLog.toMap());
+
+        await docRef.set(newMonthLog.toMap());
+      }
+    } catch (e) {
+      print('Error updating habit data: $e');
+      rethrow;
     }
   }
 
@@ -84,12 +153,7 @@ class HabitsRepository {
       final allHabits = await getAllHabits(userId);
 
       return allHabits.where((habit) {
-        if (habit.frequencyType == FrequencyType.daily) {
-          return true;
-        }
 
-        if (habit.frequencyType == FrequencyType.weekly &&
-            habit.weeklySchedule != null) {
           switch (weekday) {
             case DateTime.monday:
               return habit.weeklySchedule!.monday;
@@ -107,7 +171,6 @@ class HabitsRepository {
               return habit.weeklySchedule!.sunday;
             default:
               return false;
-          }
         }
 
         return false;
@@ -117,56 +180,7 @@ class HabitsRepository {
     }
   }
 
-  // Log habit event
-  Future<void> logHabitEvent(String userId, UserHabitLog log) async {
-    try {
-      final monthStart = DateTime(log.timestamp.year, log.timestamp.month);
-      final dayKey = log.timestamp.day.toString();
-      final docId = '${userId}_${monthStart.toIso8601String()}';
 
-      // Use arrayUnion to add the log directly to the day's logs array
-      await _firestore
-          .collection(_monthLogsCollection)
-          .doc(docId)
-          .set({
-        'date': monthStart.toIso8601String(),
-        'days.$dayKey': {
-          'date': DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day).toIso8601String(),
-          'logs': FieldValue.arrayUnion([log.toMap()])
-        }
-      }, SetOptions(merge: true));
-    } catch (e) {
-      throw Exception('Failed to log habit event: $e');
-    }
-  }
-
-  // Get logs for a specific day
-  Future<UserDayLog?> getDayLogs(String userId, DateTime date) async {
-    try {
-      final monthStart = DateTime(date.year, date.month);
-      final dayKey = date.day.toString();
-      final docId = '${userId}_${monthStart.toIso8601String()}';
-
-      // Query only the specific day's data using field path
-      final monthLogDoc = await _firestore
-          .collection(_monthLogsCollection)
-          .doc(docId)
-          .get();
-
-      if (!monthLogDoc.exists) {
-        return null;
-      }
-
-      final dayData = monthLogDoc.data()?['days']?[dayKey];
-      if (dayData == null) {
-        return null;
-      }
-
-      return UserDayLog.fromMap(dayData);
-    } catch (e) {
-      throw Exception('Failed to get day logs: $e');
-    }
-  }
 
   // Get logs for a specific month
   Future<UserMonthLog?> getMonthLogs(String userId, DateTime date) async {
@@ -189,19 +203,7 @@ class HabitsRepository {
     }
   }
 
-  // Update habit progress
-  Future<void> updateHabitProgress(String userId, String habitId, double newProgress) async {
-    try {
-      await _firestore
-          .collection(_userHabitsCollection)
-          .doc(userId)
-          .update({
-        'habits.$habitId.goal.progress': newProgress
-      });
-    } catch (e) {
-      throw Exception('Failed to update habit progress: $e');
-    }
-  }
+
 
   // Archive habit
   Future<void> archiveHabit(String userId, String habitId) async {
@@ -216,6 +218,68 @@ class HabitsRepository {
       throw Exception('Failed to archive habit: $e');
     }
   }
+
+
+
+  // New method to get habit status for a specific day
+  Future<UserHabitStatus?> getHabitStatus(String userId, String habitId, DateTime date) async {
+    try {
+      final monthStart = DateTime(date.year, date.month);
+      final dayKey = date.day.toString();
+      final docId = '${userId}_${monthStart.toIso8601String()}';
+
+      final monthLogDoc = await _firestore
+          .collection(_monthLogsCollection)
+          .doc(docId)
+          .get();
+
+      if (!monthLogDoc.exists) {
+        return null;
+      }
+
+      final statusData = monthLogDoc.data()?['days']?[dayKey]?['habits']?[habitId]?['status'];
+      if (statusData == null) {
+        return null;
+      }
+
+      return UserHabitStatus.fromMap(statusData);
+    } catch (e) {
+      throw Exception('Failed to get habit status: $e');
+    }
+  }
+
+  // New method to get all habit statuses for a day
+  Future<Map<String, UserHabitStatus>> getDayHabitStatuses(String userId, DateTime date) async {
+    try {
+      final monthStart = DateTime(date.year, date.month);
+      final dayKey = date.day.toString();
+      final docId = '${userId}_${monthStart.toIso8601String()}';
+
+      final monthLogDoc = await _firestore
+          .collection(_monthLogsCollection)
+          .doc(docId)
+          .get();
+
+      if (!monthLogDoc.exists) {
+        return {};
+      }
+
+      final habitsData = monthLogDoc.data()?['days']?[dayKey]?['habits'] as Map<String, dynamic>? ?? {};
+      final statuses = <String, UserHabitStatus>{};
+
+      habitsData.forEach((habitId, habitData) {
+        final statusData = habitData['status'];
+        if (statusData != null) {
+          statuses[habitId] = UserHabitStatus.fromMap(statusData);
+        }
+      });
+
+      return statuses;
+    } catch (e) {
+      throw Exception('Failed to get day habit statuses: $e');
+    }
+  }
+
 }
 
 

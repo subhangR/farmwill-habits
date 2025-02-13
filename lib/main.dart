@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:farmwill_habits/providers/auth_provider.dart';
 import 'package:farmwill_habits/routes/main_routes.dart';
-import 'package:farmwill_habits/views/habits/user_habits_page.dart';
+import 'package:farmwill_habits/views/habits/habit_list_screen.dart';
+import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
 import 'package:farmwill_habits/views/user/login_page.dart';
 import 'package:farmwill_habits/views/user/user_details_input_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,7 +22,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   Init.initialize();
-  runApp(MyApp());
+  runApp(ProviderScope(child: MyApp()));
 }
 
 
@@ -30,6 +32,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        const Locale('en'), // English
+        const Locale('es'), // Spanish
+        const Locale('ar'), // Arabic
+        // Add other locales as needed
+      ],
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
