@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
+import '../models/habit_data.dart';
 import '../models/habits.dart';
 
 class HabitsRepository {
@@ -7,9 +9,20 @@ class HabitsRepository {
 
   // Collection references
   static const String _userHabitsCollection = 'user_habits';
-  static const String _monthLogsCollection = 'month_logs';
+  static const String _monthLogsCollection = 'habit_logs';
 
 
+  Future<List<UserHabit>?> fetchAllHabits() async {
+    try {
+      QuerySnapshot qs  = await _firestore.collection(_userHabitsCollection).get();
+      print(qs.docs.length);
+      qs.docs.forEach((e) => debugPrint(Map<String,dynamic>.from(e.data() as Map).toString()));
+      return qs.docs.map((e) => UserHabit.fromMap(Map<String,dynamic>.from(e.data() as Map))).toList();
+    } catch(e) {
+      print(e);
+    }
+    return null;
+  }
 
   // Create a new habit
   Future<void> createHabit(String userId, UserHabit habit) async {
@@ -76,6 +89,8 @@ class HabitsRepository {
       throw Exception('Failed to get habits: $e');
     }
   }
+
+
   Future<void> updateHabitData({
     required String habitId,
     required String userId,
@@ -122,12 +137,14 @@ class HabitsRepository {
 
         // Simple update
         await docRef.update({
+          'userId': userId,
           'days': updatedDays.map((key, value) => MapEntry(key, value.toMap())),
         });
       } else {
         // Create new month log if it doesn't exist
 
         final newMonthLog = UserMonthLog(
+          userId: userId,
           monthKey: monthKey,
           days: {
             dayKey: UserDayLog(
@@ -181,6 +198,21 @@ class HabitsRepository {
   }
 
 
+  Future<List<UserMonthLog>?> getAllLogs(String userId) {
+    try {
+      return _firestore
+          .collection(_monthLogsCollection)
+          .where('userId', isEqualTo: userId)
+          .get()
+          .then((querySnapshot) {
+        return querySnapshot.docs.map((doc) {
+          return UserMonthLog.fromMap(doc.data());
+        }).toList();
+      });
+    } catch (e) {
+      throw Exception('Failed to get all logs: $e');
+    }
+  }
 
   // Get logs for a specific month
   Future<UserMonthLog?> getMonthLogs(String userId, DateTime date) async {

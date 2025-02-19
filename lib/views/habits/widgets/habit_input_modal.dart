@@ -6,18 +6,14 @@ import '../../../models/habits.dart';
 class HabitUpdateModal extends StatefulWidget {
   UserHabit userHabit;
   final int currentReps;
-  final int targetReps;
   final int currentDuration;
-  final int targetDuration;
   final Function(int reps, int duration, bool completed) onUpdate;
 
   HabitUpdateModal({
     Key? key,
     required this.userHabit,
     required this.currentReps,
-    required this.targetReps,
     required this.currentDuration,
-    required this.targetDuration,
     required this.onUpdate,
   }) : super(key: key);
 
@@ -37,9 +33,7 @@ class HabitUpdateModal extends StatefulWidget {
       builder: (context) => HabitUpdateModal(
         userHabit: userHabit,
         currentReps: currentReps,
-        targetReps: targetReps,
         currentDuration: currentDuration,
-        targetDuration: targetDuration,
         onUpdate: onUpdate,
       ),
     );
@@ -56,9 +50,10 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
   late AnimationController _animationController;
   late Animation<double> _animation;
 
-  bool get _isRepsCompleted => _reps >= widget.targetReps;
-  bool get _isDurationCompleted => _duration >= widget.targetDuration;
-  bool get _isHabitCompleted => _isRepsCompleted && _isDurationCompleted;
+  bool get _isRepsCompleted => _reps >= widget.userHabit.targetReps;
+  bool get _isDurationCompleted => widget.userHabit.targetMinutes != 0 ?
+        _duration >= widget.userHabit.targetMinutes! : false;
+  bool get _isHabitCompleted => _isRepsCompleted;
 
   @override
   void initState() {
@@ -96,7 +91,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
   }
 
   void _handleCompleteReps() {
-    setState(() => _reps = widget.targetReps);
+    setState(() => _reps = widget.userHabit.targetReps);
   }
 
   void _handleAddDuration() {
@@ -110,7 +105,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
   }
 
   void _handleCompleteDuration() {
-    setState(() => _duration = widget.targetDuration);
+    setState(() => _duration = widget.userHabit.targetMinutes ?? 0);
   }
 
   void _handleComplete() {
@@ -218,7 +213,9 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
   void _openCalendar() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) =>  HabitDetailsPage(), // You'll need to create this page
+        builder: (context) =>  HabitDetailsPage(
+          userHabit: widget.userHabit,
+        ), // You'll need to create this page
       ),
     );
   }
@@ -284,7 +281,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
                 _buildProgressSection(
                   title: 'Repetitions',
                   current: _reps,
-                  target: widget.targetReps,
+                  target: widget.userHabit.targetReps,
                   onAdd: _handleAddRep,
                   onSubtract: _handleSubtractRep,
                   onComplete: _handleCompleteReps,
@@ -296,7 +293,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
                 _buildProgressSection(
                   title: 'Duration',
                   current: _duration,
-                  target: widget.targetDuration,
+                  target: widget.userHabit.targetMinutes ?? 0,
                   onAdd: _handleAddDuration,
                   onSubtract: _handleSubtractDuration,
                   onComplete: _handleCompleteDuration,

@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:farmwill_habits/providers/auth_provider.dart';
+import 'package:farmwill_habits/repositories/habits_repository.dart';
 import 'package:farmwill_habits/routes/main_routes.dart';
-import 'package:farmwill_habits/views/habits/habit_list_screen.dart';
-import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
 import 'package:farmwill_habits/views/user/login_page.dart';
 import 'package:farmwill_habits/views/user/user_details_input_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,10 +9,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'init.dart';
+import 'models/habits.dart';
 import 'models/user.dart';
 
 void main() async {
@@ -22,6 +23,13 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   Init.initialize();
+  // HabitsRepository habitsRepository = GetIt.I<HabitsRepository>();
+  // List<UserHabit>? habits = await habitsRepository.fetchAllHabits();
+  // if(habits != null) {
+  //   habits.forEach((e) {
+  //     print(e.toMap());
+  //   });
+  // }
   runApp(ProviderScope(child: MyApp()));
 }
 

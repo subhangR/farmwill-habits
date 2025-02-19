@@ -1,43 +1,67 @@
 import 'package:farmwill_habits/repositories/habits_repository.dart';
-import 'package:farmwill_habits/views/habits/create_habit_page.dart';
 import 'package:farmwill_habits/views/habits/habit_details_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../models/habit_data.dart';
 import '../../../models/habits.dart';
+import '../habit_list_screen.dart';
+import '../habit_state.dart';
 import 'habit_input_modal.dart';
 
-class HabitCard extends StatefulWidget {
-  UserHabit userHabit;
-  HabitCard({
+class HabitCard extends ConsumerStatefulWidget {
+  final UserHabit userHabit;
+
+  const HabitCard({
     Key? key,
     required this.userHabit,
   }) : super(key: key);
 
   @override
-  State<HabitCard> createState() => _HabitCardState();
+  ConsumerState<HabitCard> createState() => _HabitCardState();
 }
 
-class _HabitCardState extends State<HabitCard>
+class _HabitCardState extends ConsumerState<HabitCard>
     with SingleTickerProviderStateMixin {
   late int _currentReps;
+  late int _currentMinutes;
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _buttonScaleAnimation;
   double _fillProgress = 0.0; // Track fill progress
+  double _startFillProgress = 0.0; // Track starting fill progress for animations
+  double _targetFillProgress = 0.0; // Track target fill progress for animations
   bool _isFilling = false; // Track if currently filling
+  bool _isInitialized = false; // Track if card has been initialized
+  DateTime? _lastLoadedDate; // Track last loaded date to detect changes
 
-  bool get isCompleted => _currentReps >= widget.userHabit.targetReps!;
-  bool get hasStarted => _currentReps > 0;
+  bool get isCompleted {
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      return _currentReps >= widget.userHabit.targetReps!;
+    } else {
+      return _currentMinutes >= (widget.userHabit.targetMinutes ?? 0);
+    }
+  }
 
-  HabitsRepository habitsRepository = GetIt.I<HabitsRepository>();
-  String _userId = FirebaseAuth.instance.currentUser!.uid;
+  bool get hasStarted {
+    return widget.userHabit.goalType == GoalType.repetitions
+        ? _currentReps > 0
+        : _currentMinutes > 0;
+  }
+
+  // Additional duration increment value
+  final int _minutesIncrement = 5;
+
+  final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
+  final String _userId = FirebaseAuth.instance.currentUser!.uid;
 
   @override
   void initState() {
     super.initState();
     _currentReps = 0;
+    _currentMinutes = 0;
     _controller = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -48,6 +72,86 @@ class _HabitCardState extends State<HabitCard>
     _buttonScaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
+
+    // Load current data from provider
+    _loadCurrentDataFromState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check if we need to reload data due to date change
+    _checkForDateChange();
+  }
+
+  void _checkForDateChange() {
+    final habitState = ref.read(habitStateProvider);
+    final currentSelectedDate = habitState.selectedDate;
+
+    // Check if the date has changed since we last loaded data
+    if (_lastLoadedDate == null ||
+        _lastLoadedDate!.year != currentSelectedDate.year ||
+        _lastLoadedDate!.month != currentSelectedDate.month ||
+        _lastLoadedDate!.day != currentSelectedDate.day) {
+      // Date has changed, reload data
+      _loadCurrentDataFromState();
+    }
+  }
+
+  void _loadCurrentDataFromState() {
+    final habitState = ref.read(habitStateProvider);
+    final selectedDate = habitState.selectedDate;
+    final dayLog = habitState.getDayLog(selectedDate);
+
+    // Store current date to track changes
+    _lastLoadedDate = selectedDate;
+
+    // Reset state for new date
+    setState(() {
+      _currentReps = 0;
+      _currentMinutes = 0;
+      _fillProgress = 0.0;
+      _startFillProgress = 0.0;
+      _targetFillProgress = 0.0;
+    });
+
+    if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
+      final habitData = dayLog.habits[widget.userHabit.id];
+      if (habitData != null) {
+        setState(() {
+          _currentReps = habitData.reps;
+          _currentMinutes = habitData.duration;
+          _isInitialized = true;
+
+          // Calculate fill progress based on goal type
+          if (widget.userHabit.goalType == GoalType.repetitions) {
+            if (_currentReps > 0 && widget.userHabit.targetReps! > 0) {
+              _fillProgress = _currentReps / widget.userHabit.targetReps!;
+            } else if (isCompleted) {
+              _fillProgress = 1.0;
+            }
+          } else {
+            // Duration goal type
+            final targetMinutes = widget.userHabit.targetMinutes ?? 0;
+            if (_currentMinutes > 0 && targetMinutes > 0) {
+              _fillProgress = _currentMinutes / targetMinutes;
+            } else if (isCompleted) {
+              _fillProgress = 1.0;
+            }
+          }
+          // Initialize start fill progress to current progress
+          _startFillProgress = _fillProgress;
+        });
+      } else {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } else {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   @override
@@ -57,28 +161,45 @@ class _HabitCardState extends State<HabitCard>
   }
 
   void _startFilling() {
+    // Calculate new target fill progress based on current progress
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      _targetFillProgress = _currentReps / widget.userHabit.targetReps!;
+    } else {
+      final targetMinutes = widget.userHabit.targetMinutes ?? 0;
+      if (targetMinutes > 0) {
+        _targetFillProgress = _currentMinutes / targetMinutes;
+      }
+    }
+
+    // Store the current progress as starting point
+    _startFillProgress = _fillProgress;
+
     setState(() {
       _isFilling = true;
     });
 
-    // Animate fill over 2 seconds
-    const fillDuration = Duration(milliseconds: 100);
+    // Animate fill over 150ms
+    const fillDuration = Duration(milliseconds: 150);
     final startTime = DateTime.now();
 
     void updateFill() {
       if (!_isFilling) return;
 
       final elapsedTime = DateTime.now().difference(startTime);
-      final progress =
-          (elapsedTime.inMilliseconds / fillDuration.inMilliseconds)
-              .clamp(0.0, 1.0);
+      final animationProgress =
+      (elapsedTime.inMilliseconds / fillDuration.inMilliseconds)
+          .clamp(0.0, 1.0);
 
       setState(() {
-        _fillProgress = progress;
+        // Interpolate between start and target fill values
+        _fillProgress = _startFillProgress +
+            (_targetFillProgress - _startFillProgress) * animationProgress;
       });
 
-      if (progress < 1.0 && _isFilling) {
+      if (animationProgress < 1.0 && _isFilling) {
         Future.delayed(const Duration(milliseconds: 16), updateFill);
+      } else if (animationProgress >= 1.0) {
+        _isFilling = false;
       }
     }
 
@@ -88,87 +209,289 @@ class _HabitCardState extends State<HabitCard>
   void _stopFilling() {
     setState(() {
       _isFilling = false;
-      _fillProgress = 0.0;
+      // Store current progress as the final state
+      _fillProgress = _targetFillProgress;
     });
   }
 
   void _handleTap() async {
-    if (_currentReps < widget.userHabit.targetReps!) {
-      setState(() => _currentReps++);
-      _controller.forward().then((_) => _controller.reverse());
-      _startFilling();
+    if (isCompleted) return;
 
-      // Create updated habit data
-      final habitData = HabitData(
-        reps: _currentReps,
-        duration: 0, // Update if you're tracking duration
-        willObtained: 5, // Update based on your will calculation logic
-        targetReps: widget.userHabit.targetReps!,
-        targetDuration: widget.userHabit.targetMinutes ?? 0,
-        targetWill: widget.userHabit.maxScore ?? 0,
-        willPerRep: widget.userHabit.scorePerRep ?? 0,
-        willPerDuration: widget.userHabit.scorePerMinute ?? 0,
-        maxWill: widget.userHabit.maxScore ?? 0,
-        startingWill: widget.userHabit.startingWill ?? 0,
-        isCompleted: _currentReps >= widget.userHabit.targetReps!,
+    _controller.forward().then((_) => _controller.reverse());
+
+    // Store previous values for animation
+    int previousReps = _currentReps;
+    int previousMinutes = _currentMinutes;
+
+    // Update based on goal type
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      setState(() => _currentReps++);
+    } else {
+      setState(() => _currentMinutes += _minutesIncrement);
+    }
+
+    _startFilling();
+
+    // Update will points through the provider
+    final habitState = ref.read(habitStateProvider);
+    int willChange = 0;
+
+    if (widget.userHabit.goalType == GoalType.repetitions && widget.userHabit.willPerRep != null) {
+      willChange = widget.userHabit.willPerRep!;
+    } else if (widget.userHabit.goalType == GoalType.duration && widget.userHabit.willPerMin != null) {
+      willChange = widget.userHabit.willPerMin! * _minutesIncrement;
+    }
+
+    if (willChange != 0) {
+      habitState.updateWillPoints(willChange);
+    }
+
+    // Create updated habit data
+    final willObtained = _calculateWillObtained();
+
+    final habitData = HabitData(
+      reps: _currentReps,
+      duration: _currentMinutes,
+      goalType: widget.userHabit.goalType,
+      willObtained: willObtained,
+      targetReps: widget.userHabit.targetReps ?? 0,
+      targetDuration: widget.userHabit.targetMinutes ?? 0,
+      targetWill: widget.userHabit.maxScore ?? 0,
+      willPerRep: widget.userHabit.willPerRep ?? 0,
+      willPerDuration: widget.userHabit.willPerMin ?? 0,
+      maxWill: widget.userHabit.maxScore ?? 0,
+      startingWill: widget.userHabit.startingWill ?? 0,
+      isCompleted: isCompleted,
+    );
+
+    try {
+      // Update habit data in repository
+      await _habitsRepository.updateHabitData(
+        habitId: widget.userHabit.id,
+        userId: _userId,
+        habitData: habitData,
+        date: habitState.selectedDate,
       );
 
-      try {
-        await habitsRepository.updateHabitData(
-          habitId: widget.userHabit.id,
-          userId: _userId,
-          habitData: habitData,
-          date: DateTime.now(),
-        );
+      // Reload habits data to refresh the UI
+      await habitState.loadHabitsAndData(_userId);
 
-        if (_currentReps == widget.userHabit.targetReps) {
-          _showCompletionConfetti();
-        }
-      } catch (e) {
-        // Handle error (show snackbar, etc.)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update habit: $e')),
-        );
+      if (isCompleted) {
+        _showCompletionConfetti();
       }
+    } catch (e) {
+      // Revert local state on error
+      setState(() {
+        if (widget.userHabit.goalType == GoalType.repetitions) {
+          _currentReps = previousReps;
+        } else {
+          _currentMinutes = previousMinutes;
+        }
+        _fillProgress = _startFillProgress;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update habit: $e')),
+      );
     }
   }
+
+  int _calculateWillObtained() {
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      return widget.userHabit.willPerRep != null ?
+      _currentReps * widget.userHabit.willPerRep! : 0;
+    } else {
+      return widget.userHabit.willPerMin != null ?
+      _currentMinutes * widget.userHabit.willPerMin! : 0;
+    }
+  }
+
   void _handleLongPress() {
     _stopFilling();
     HabitUpdateModal.show(
       context,
       userHabit: widget.userHabit,
-      targetDuration: 30,
-      currentDuration: 20,
+      targetDuration: widget.userHabit.targetMinutes ?? 0,
+      currentDuration: _currentMinutes,
       targetReps: widget.userHabit.targetReps,
       currentReps: _currentReps,
-      onUpdate: (reps, duration, completed) {
+      onUpdate: (reps, duration, completed) async {
+        // Store previous progress for potential animation
+        double previousProgress = _fillProgress;
+
         setState(() {
           _currentReps = reps;
+          _currentMinutes = duration;
+
+          // Update fill progress based on new data
+          if (widget.userHabit.goalType == GoalType.repetitions) {
+            if (widget.userHabit.targetReps! > 0) {
+              _fillProgress = reps / widget.userHabit.targetReps!;
+            }
+          } else {
+            final targetMinutes = widget.userHabit.targetMinutes ?? 0;
+            if (targetMinutes > 0) {
+              _fillProgress = duration / targetMinutes;
+            }
+          }
         });
+
+        // Create updated habit data for modal update
+        final habitData = HabitData(
+          reps: reps,
+          duration: duration,
+          goalType: widget.userHabit.goalType,
+          willObtained: _calculateWillObtained(),
+          targetReps: widget.userHabit.targetReps ?? 0,
+          targetDuration: widget.userHabit.targetMinutes ?? 0,
+          targetWill: widget.userHabit.maxScore ?? 0,
+          willPerRep: widget.userHabit.willPerRep ?? 0,
+          willPerDuration: widget.userHabit.willPerMin ?? 0,
+          maxWill: widget.userHabit.maxScore ?? 0,
+          startingWill: widget.userHabit.startingWill ?? 0,
+          isCompleted: completed,
+        );
+
+        try {
+          final habitState = ref.read(habitStateProvider);
+
+          // Update habit data in repository
+          await _habitsRepository.updateHabitData(
+            habitId: widget.userHabit.id,
+            userId: _userId,
+            habitData: habitData,
+            date: habitState.selectedDate,
+          );
+
+          // Reload habits data to refresh the UI
+          await habitState.loadHabitsAndData(_userId);
+        } catch (e) {
+          // Revert on error
+          setState(() {
+            _fillProgress = previousProgress;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update habit: $e')),
+          );
+        }
       },
     );
   }
 
-  void _handleRemove() {
-    if (_currentReps > 0) {
-      setState(() => _currentReps--);
-      _controller.forward().then((_) => _controller.reverse());
+  void _handleRemove() async {
+    if (!hasStarted) return;
+
+    _controller.forward().then((_) => _controller.reverse());
+
+    // Store previous values for potential revert
+    int previousReps = _currentReps;
+    int previousMinutes = _currentMinutes;
+    double previousFillProgress = _fillProgress;
+
+    // Update based on goal type
+    int willChange = 0;
+
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      if (_currentReps > 0) {
+        setState(() {
+          _currentReps--;
+          // Update fill progress
+          if (widget.userHabit.targetReps! > 0) {
+            _fillProgress = _currentReps / widget.userHabit.targetReps!;
+          }
+        });
+
+        if (widget.userHabit.willPerRep != null) {
+          willChange = -widget.userHabit.willPerRep!;
+        }
+      }
+    } else {
+      if (_currentMinutes >= _minutesIncrement) {
+        setState(() {
+          _currentMinutes -= _minutesIncrement;
+          // Update fill progress
+          final targetMinutes = widget.userHabit.targetMinutes ?? 0;
+          if (targetMinutes > 0) {
+            _fillProgress = _currentMinutes / targetMinutes;
+          }
+        });
+
+        if (widget.userHabit.willPerMin != null) {
+          willChange = -widget.userHabit.willPerMin! * _minutesIncrement;
+        }
+      }
+    }
+
+    // Update will points through the provider
+    if (willChange != 0) {
+      final habitState = ref.read(habitStateProvider);
+      habitState.updateWillPoints(willChange);
+    }
+
+    // Create updated habit data
+    final willObtained = _calculateWillObtained();
+
+    final habitData = HabitData(
+      reps: _currentReps,
+      duration: _currentMinutes,
+      goalType: widget.userHabit.goalType,
+      willObtained: willObtained,
+      targetReps: widget.userHabit.targetReps ?? 0,
+      targetDuration: widget.userHabit.targetMinutes ?? 0,
+      targetWill: widget.userHabit.maxScore ?? 0,
+      willPerRep: widget.userHabit.willPerRep ?? 0,
+      willPerDuration: widget.userHabit.willPerMin ?? 0,
+      maxWill: widget.userHabit.maxScore ?? 0,
+      startingWill: widget.userHabit.startingWill ?? 0,
+      isCompleted: isCompleted,
+    );
+
+    try {
+      // Update habit data in repository
+      final habitState = ref.read(habitStateProvider);
+      await _habitsRepository.updateHabitData(
+        habitId: widget.userHabit.id,
+        userId: _userId,
+        habitData: habitData,
+        date: habitState.selectedDate,
+      );
+
+      // Reload habits data to refresh the UI
+      await habitState.loadHabitsAndData(_userId);
+    } catch (e) {
+      // Revert on error
+      setState(() {
+        _currentReps = previousReps;
+        _currentMinutes = previousMinutes;
+        _fillProgress = previousFillProgress;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update habit: $e')),
+      );
     }
   }
 
   void _showCompletionConfetti() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Updated Habit')),
+      const SnackBar(content: Text('Updated Habit')),
     );
   }
 
-  void _handDoubleTap() {
+  void _handleDoubleTap() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => HabitDetailsPage(),
+        builder: (context) => HabitDetailsPage(
+          userHabit: widget.userHabit,
+        ),
       ),
-    );
+    ).then((_) {
+      // Refresh data when returning from details page
+      final habitState = ref.read(habitStateProvider);
+      habitState.loadHabitsAndData(_userId);
+    });
   }
 
   String getFrequencyText() {
@@ -189,19 +512,37 @@ class _HabitCardState extends State<HabitCard>
     }
   }
 
+  String getGoalProgressText() {
+    // For negative habits, don't show detailed progress
+    if (widget.userHabit.nature == HabitNature.negative) {
+      return isCompleted ? 'Completed' : hasStarted ? 'In progress' : 'Not started';
+    }
+
+    // For positive habits, show detailed progress
+    if (widget.userHabit.goalType == GoalType.repetitions) {
+      return widget.userHabit.targetReps == 1
+          ? isCompleted
+          ? 'Completed'
+          : 'Not completed'
+          : '$_currentReps/${widget.userHabit.targetReps} reps';
+    } else {
+      return '$_currentMinutes/${widget.userHabit.targetMinutes} min';
+    }
+  }
+
   Color getFillColor() {
     if (widget.userHabit.nature == HabitNature.positive) {
       // For positive habits
       if (isCompleted) {
         return Colors.green.shade700.withOpacity(0.3); // Darker green
-      } else if (_currentReps > 0) {
+      } else if (hasStarted) {
         return Colors.green.shade300.withOpacity(0.3); // Lighter green
       }
     } else {
       // For negative habits
       if (isCompleted) {
         return Colors.red.shade700.withOpacity(0.3); // Darker red
-      } else if (_currentReps > 0) {
+      } else if (hasStarted) {
         return Colors.red.shade300.withOpacity(0.3); // Lighter red
       }
     }
@@ -212,17 +553,14 @@ class _HabitCardState extends State<HabitCard>
     if (widget.userHabit.nature == HabitNature.positive) {
       return isCompleted
           ? Colors.green.shade700.withOpacity(0.5)
-          : // Darker green
-          Colors.green.shade300.withOpacity(0.5); // Lighter green
+          : Colors.green.shade300.withOpacity(0.5);
     } else {
       return isCompleted
           ? Colors.red.shade700.withOpacity(0.5)
-          : // Darker red
-          Colors.red.shade300.withOpacity(0.5); // Lighter red
+          : Colors.red.shade300.withOpacity(0.5);
     }
   }
 
-// Update _buildActionButton() method:
   Widget _buildActionButton() {
     final isPositive = widget.userHabit.nature == HabitNature.positive;
     final baseColor = isPositive ? Colors.green : Colors.red;
@@ -281,6 +619,31 @@ class _HabitCardState extends State<HabitCard>
 
   @override
   Widget build(BuildContext context) {
+    // Watch for changes in the habit state
+    final habitState = ref.watch(habitStateProvider);
+    final currentDate = habitState.selectedDate;
+
+    // Check if we need to reload data due to date change
+    if (_lastLoadedDate == null ||
+        _lastLoadedDate!.year != currentDate.year ||
+        _lastLoadedDate!.month != currentDate.month ||
+        _lastLoadedDate!.day != currentDate.day) {
+      // If we're in build, schedule a reload for after this build completes
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadCurrentDataFromState();
+      });
+    }
+
+    // If not initialized yet, show a loading placeholder
+    if (!_isInitialized) {
+      return const SizedBox(
+        height: 80,
+        child: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     Color getBorderColor() {
       if (widget.userHabit.nature == HabitNature.positive) {
         return Colors.green.withOpacity(0.7);
@@ -293,7 +656,7 @@ class _HabitCardState extends State<HabitCard>
       clipBehavior: Clip.none,
       children: [
         GestureDetector(
-          onDoubleTap: _handDoubleTap,
+          onDoubleTap: _handleDoubleTap,
           onTap: _handleTap,
           onLongPress: _handleLongPress,
           child: AnimatedBuilder(
@@ -315,25 +678,26 @@ class _HabitCardState extends State<HabitCard>
                   borderRadius: BorderRadius.circular(12),
                   child: Stack(
                     children: [
-// Update the fill animation in build method:
-                      if (_isFilling)
+                      // Background fill for completed/partially completed habits
+                      if (hasStarted)
                         Positioned.fill(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 100),
-                            decoration: BoxDecoration(
-                              color: getFillColor(),
-                            ),
-                            child: FractionallySizedBox(
-                              alignment: Alignment.centerLeft,
-                              widthFactor: _fillProgress,
-                              child: Container(
-                                color: getProgressColor(),
-                              ),
+                          child: Container(
+                            color: getFillColor(),
+                          ),
+                        ),
+
+                      // Progress fill animation
+                      if (hasStarted)
+                        Positioned.fill(
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: _fillProgress.clamp(0.0, 1.0),
+                            child: Container(
+                              color: getProgressColor(),
                             ),
                           ),
                         ),
 
-                      // Fill Animation Layer
                       // Content Layer
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
@@ -344,7 +708,6 @@ class _HabitCardState extends State<HabitCard>
                         ),
                         child: Row(
                           children: [
-                            // Rest of your existing row content...
                             AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
                               padding: const EdgeInsets.all(12),
@@ -356,7 +719,7 @@ class _HabitCardState extends State<HabitCard>
                                 widget.userHabit.habitIcon,
                                 size: 32,
                                 color:
-                                    isCompleted ? Colors.green : Colors.white,
+                                isCompleted ? Colors.green : Colors.white,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -376,12 +739,8 @@ class _HabitCardState extends State<HabitCard>
                                   AnimatedSwitcher(
                                     duration: const Duration(milliseconds: 300),
                                     child: Text(
-                                      widget.userHabit.targetReps == 1
-                                          ? isCompleted
-                                              ? 'Completed'
-                                              : 'Not completed'
-                                          : '$_currentReps/${widget.userHabit.targetReps} reps',
-                                      key: ValueKey(_currentReps),
+                                      getGoalProgressText(),
+                                      key: ValueKey('${_currentReps}_${_currentMinutes}_${widget.userHabit.nature}_${currentDate.toString()}'),
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.grey.shade300,
@@ -405,9 +764,10 @@ class _HabitCardState extends State<HabitCard>
                                         color: Colors.orange,
                                       ),
                                       const SizedBox(width: 4),
-                                      const Text(
-                                        "5",
-                                        style: TextStyle(
+                                      Text(
+                                        // Display will points from habit data
+                                        _getHabitWillPoints().toString(),
+                                        style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.white,
@@ -447,5 +807,20 @@ class _HabitCardState extends State<HabitCard>
       ],
     );
   }
-}
 
+  // Get will points for this habit from state
+  int _getHabitWillPoints() {
+    final habitState = ref.read(habitStateProvider);
+    final selectedDate = habitState.selectedDate;
+    final dayLog = habitState.getDayLog(selectedDate);
+
+    if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
+      final habitData = dayLog.habits[widget.userHabit.id];
+      if (habitData != null) {
+        return habitData.willObtained;
+      }
+    }
+
+    return _calculateWillObtained();
+  }
+}

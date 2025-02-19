@@ -1,5 +1,6 @@
 import 'package:farmwill_habits/repositories/habits_repository.dart';
 import 'package:farmwill_habits/services/auth_service.dart';
+import 'package:farmwill_habits/services/habit_service.dart';
 import 'package:get_it/get_it.dart';
 
 
@@ -18,6 +19,9 @@ class Init {
         () => AuthService());
     GetIt.I.registerLazySingleton<HabitsRepository>(
             () => HabitsRepository());
+    GetIt.I.registerLazySingleton<HabitService>(
+            () => HabitService()
+    );
 
   }
 

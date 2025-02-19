@@ -5,82 +5,80 @@ import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../models/habit_data.dart';
 import '../../models/habits.dart';
 import '../../repositories/habits_repository.dart';
 import 'create_habit_page.dart';
+import 'habit_state.dart';
 
-class HabitListScreen extends StatefulWidget {
+class HabitListScreen extends ConsumerStatefulWidget {
   @override
-  State<HabitListScreen> createState() => _HabitListScreenState();
+  ConsumerState<HabitListScreen> createState() => _HabitListScreenState();
 }
 
-class _HabitListScreenState extends State<HabitListScreen> {
+class _HabitListScreenState extends ConsumerState<HabitListScreen> {
   bool _showCalendar = false;
   DateTime _selectedDate = DateTime.now();
   final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-  List<UserHabit>? _habits;
   bool _isLoading = true;
-  String? _error;
-
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
-    _loadHabits();
+    _loadHabitsAndData();
   }
+
   void _toggleCalendar() {
     setState(() {
       _showCalendar = !_showCalendar;
     });
   }
 
-  void _onDateSelected(DateTime date) {
-    setState(() {
-      _selectedDate = date;
-    });
-    // Here you can filter habits based on the selected date
+  UserDayLog? getDayLog(DateTime date) {
+    final userHabitState = ref.read(habitStateProvider);
+    return userHabitState.getDayLog(date);
   }
 
-  final dateStats = {
-    DateTime(2025, 1, 9): CalendarDaysStats(
-      progressPercent: 0.8,
-      isGoodHabit: true,
-      willPercent: 0.7,
-    ),
-    DateTime(2025, 1, 8): CalendarDaysStats(
-      progressPercent: 0.8,
-      isGoodHabit: true,
-      willPercent: 0.7,
-    ),
-  };
-
-
-  Future<void> _loadHabits() async {
+  Future<void> _loadHabitsAndData() async {
     try {
       setState(() {
         _isLoading = true;
-        _error = null;
       });
 
-      final habits = await _habitsRepository.getAllHabits(_userId);
+      final userHabitState = ref.read(habitStateProvider);
+      await userHabitState.loadHabitsAndData(_userId, _selectedDate);
 
       setState(() {
-        _habits = habits;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to load habits: $e';
         _isLoading = false;
       });
     }
   }
+
+  void _onDateSelected(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+    });
+
+    // Update habits data for the selected date through the provider
+    final userHabitState = ref.read(habitStateProvider);
+    userHabitState.updateSelectedDate(date);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Watch the user habit state for changes
+    final userHabitState = ref.watch(habitStateProvider);
+    final willPoints = userHabitState.willPoints;
+    final hasError = userHabitState.error != null;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
       drawer: _buildDrawer(),
@@ -104,7 +102,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
                   MaterialPageRoute(builder: (context) => WillHistoryPage()),
                 );
               },
-              child: WillWidget(willPoints: 25),
+              child: WillWidget(willPoints: willPoints),
             ),
           ),
           IconButton(
@@ -128,7 +126,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
                         MaterialPageRoute(builder: (context) => EditHabitPage()),
                       );
                       // Reload habits after returning from create page
-                      _loadHabits();
+                      _loadHabitsAndData();
                     },
                   ),
                 ),
@@ -138,7 +136,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadHabits,
+        onRefresh: _loadHabitsAndData,
         child: Column(
           children: [
             // Calendar Section
@@ -151,7 +149,6 @@ class _HabitListScreenState extends State<HabitListScreen> {
                 child: CalendarWidget(
                   initialDate: _selectedDate,
                   onDateSelected: _onDateSelected,
-                  dateStats: dateStats,
                 ),
               )
                   : null,
@@ -159,7 +156,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
 
             // Habits List Section
             Expanded(
-              child: _buildHabitsList(),
+              child: _buildHabitsList(userHabitState),
             ),
           ],
         ),
@@ -167,7 +164,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
     );
   }
 
-  Widget _buildHabitsList() {
+  Widget _buildHabitsList(UserHabitState userHabitState) {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -176,19 +173,19 @@ class _HabitListScreenState extends State<HabitListScreen> {
       );
     }
 
-    if (_error != null) {
+    if (userHabitState.error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _error!,
+              userHabitState.error!,
               style: const TextStyle(color: Colors.red),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadHabits,
+              onPressed: _loadHabitsAndData,
               child: const Text('Retry'),
             ),
           ],
@@ -196,7 +193,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
       );
     }
 
-    if (_habits == null || _habits!.isEmpty) {
+    if (userHabitState.habits.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -211,7 +208,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
                 await Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => EditHabitPage()),
                 );
-                _loadHabits();
+                _loadHabitsAndData();
               },
               child: const Text('Create Your First Habit'),
             ),
@@ -222,9 +219,9 @@ class _HabitListScreenState extends State<HabitListScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(10),
-      itemCount: _habits!.length,
+      itemCount: userHabitState.habits.length,
       itemBuilder: (context, index) {
-        final habit = _habits![index];
+        final habit = userHabitState.habits[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 10, top: 10),
           child: HabitCard(
@@ -234,7 +231,7 @@ class _HabitListScreenState extends State<HabitListScreen> {
       },
     );
   }
-  // Improved Drawer
+
   Widget _buildDrawer() {
     return Drawer(
       backgroundColor: const Color(0xFF2D2D2D), // Dark background

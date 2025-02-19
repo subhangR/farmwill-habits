@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:farmwill_habits/views/habits/widgets/calendar_widget.dart';
-import 'package:farmwill_habits/views/habits/widgets/weekly_stats_widgets/line_scatterd_weekly_stats.dart';
-import 'package:farmwill_habits/views/habits/widgets/weekly_stats_widgets/weekly_stats_widget.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class WillHistoryPage extends StatelessWidget {
+import 'habit_state.dart';
+import '../../models/habit_data.dart';
+import '../../models/habits.dart';
+import 'widgets/calendar_widget.dart';
+import 'widgets/weekly_stats_widgets/line_scatterd_weekly_stats.dart';
+import 'widgets/weekly_stats_widgets/weekly_stats_widget.dart';
+
+class WillHistoryPage extends ConsumerStatefulWidget {
   const WillHistoryPage({Key? key}) : super(key: key);
 
   // Custom colors for dark theme (keeping consistent with HabitDetailsPage)
@@ -16,19 +23,126 @@ class WillHistoryPage extends StatelessWidget {
   static const secondaryTextColor = Color(0xFFB3B3B3);
 
   @override
+  ConsumerState<WillHistoryPage> createState() => _WillHistoryPageState();
+}
+
+class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
+  DateTime _selectedDate = DateTime.now();
+  String _userId = FirebaseAuth.instance.currentUser!.uid;
+  bool _isLoading = true;
+
+  // Will stats
+  int _totalWillGained = 0;
+  int _totalWillLost = 0;
+  Map<String, int> _habitWillBreakdown = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Get the habit state provider
+    final habitState = ref.read(habitStateProvider);
+
+    // Load month logs and day data
+    await habitState.loadHabitsAndData(_userId, _selectedDate);
+
+    // Calculate will statistics
+    _calculateWillStats();
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  void _calculateWillStats() {
+    final habitState = ref.read(habitStateProvider);
+    final monthLogs = habitState.monthLogs;
+    final habits = habitState.habits;
+
+    // Reset counters
+    _totalWillGained = 0;
+    _totalWillLost = 0;
+    _habitWillBreakdown = {};
+
+    // Calculate totals from all month logs
+    for (var monthLog in monthLogs.values) {
+      for (var dayLog in monthLog.days.values) {
+        dayLog.habits.forEach((habitId, habitData) {
+          // Find the habit to determine if it's positive or negative
+          final habit = habits.firstWhere(
+                (h) => h.id == habitId,
+            orElse: () => habits.first,
+          );
+
+          final willValue = habitData.willObtained;
+
+          // Update totals based on habit nature
+          if (habit.nature == HabitNature.positive) {
+            _totalWillGained += willValue;
+          } else {
+            _totalWillLost += willValue;
+          }
+
+          // Update breakdown by habit
+          if (!_habitWillBreakdown.containsKey(habitId)) {
+            _habitWillBreakdown[habitId] = 0;
+          }
+          _habitWillBreakdown[habitId] = (_habitWillBreakdown[habitId] ?? 0) + willValue;
+        });
+      }
+    }
+  }
+
+  void _onDateSelected(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _isLoading = true;
+    });
+
+    final habitState = ref.read(habitStateProvider);
+
+    // Update selected date in provider
+    habitState.updateSelectedDate(date);
+
+    // Recalculate stats
+    _calculateWillStats();
+
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Watch habit state for changes
+    final habitState = ref.watch(habitStateProvider);
+
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: WillHistoryPage.backgroundColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: WillHistoryPage.backgroundColor,
       appBar: AppBar(
-        backgroundColor: backgroundColor,
+        backgroundColor: WillHistoryPage.backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: textColor),
+          icon: const Icon(Icons.arrow_back, color: WillHistoryPage.textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Will History',
-          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+          style: TextStyle(color: WillHistoryPage.textColor, fontWeight: FontWeight.w600),
         ),
       ),
       body: SingleChildScrollView(
@@ -36,7 +150,10 @@ class WillHistoryPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CalendarWidget(),
+            CalendarWidget(
+              initialDate: _selectedDate,
+              onDateSelected: _onDateSelected,
+            ),
             const SizedBox(height: 32),
             _buildWillSummaryCards(),
             const SizedBox(height: 32),
@@ -44,7 +161,7 @@ class WillHistoryPage extends StatelessWidget {
             const SizedBox(height: 32),
             _buildWillBreakdown(),
             const SizedBox(height: 32),
-            _buildWeeklyStats(),
+            _buildWeeklyTotalWill(),
           ],
         ),
       ),
@@ -57,7 +174,7 @@ class WillHistoryPage extends StatelessWidget {
         Expanded(
           child: _buildGlassCard(
             'Total Will Gained',
-            '+350',
+            '+$_totalWillGained',
             Icons.trending_up,
             gradient: const LinearGradient(
               colors: [Color(0xFF4CAF50), Color(0xFF81C784)],
@@ -70,7 +187,7 @@ class WillHistoryPage extends StatelessWidget {
         Expanded(
           child: _buildGlassCard(
             'Total Will Lost',
-            '-120',
+            '-$_totalWillLost',
             Icons.trending_down,
             gradient: const LinearGradient(
               colors: [Color(0xFFFF5252), Color(0xFFFF8A80)],
@@ -130,34 +247,66 @@ class WillHistoryPage extends StatelessWidget {
   }
 
   Widget _buildWillGainedGraph() {
-    // Example data - you should replace this with actual data from your app
-    final weeklyStats = WeeklyStatsValue(
-      dailyStats: [
-        DayStats(day: 'Mon', value: 50),
-        DayStats(day: 'Tue', value: 30),
-        DayStats(day: 'Wed', value: 70),
-        DayStats(day: 'Thu', value: 20),
-        DayStats(day: 'Fri', value: 60),
-        DayStats(day: 'Sat', value: 40),
-        DayStats(day: 'Sun', value: 80),
-      ],
-    );
+    final habitState = ref.read(habitStateProvider);
+    final weeklyStats = _calculateDailyWillForCurrentWeek();
 
     return LineScatterWeeklyStats(
-      title: 'Will Gained per Day',
+      title: 'Will Points per Day',
       stats: weeklyStats,
       height: 200,
-      backgroundColor: cardColor,
-      textColor: textColor,
+      backgroundColor: WillHistoryPage.cardColor,
+      textColor: WillHistoryPage.textColor,
     );
   }
 
+  WeeklyStatsValue _calculateDailyWillForCurrentWeek() {
+    final habitState = ref.read(habitStateProvider);
+    final now = DateTime.now();
+
+    // Find the start of current week (Monday)
+    final currentWeekday = now.weekday;
+    final startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
+
+    final dailyStats = <DayStats>[];
+    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    for (int i = 0; i < 7; i++) {
+      final date = startOfWeek.add(Duration(days: i));
+      final dayLog = habitState.getDayLog(date);
+
+      int willTotal = 0;
+      if (dayLog != null) {
+        // Sum up will points for this day
+        dayLog.habits.forEach((_, habitData) {
+          willTotal += habitData.willObtained;
+        });
+      }
+
+      dailyStats.add(DayStats(
+        day: dayNames[i],
+        value: willTotal.toDouble(),
+      ));
+    }
+
+    return WeeklyStatsValue(dailyStats: dailyStats);
+  }
+
   Widget _buildWillBreakdown() {
+    final habitState = ref.read(habitStateProvider);
+    final habits = habitState.habits;
+
+    // Sort habits by will contribution
+    final sortedEntries = _habitWillBreakdown.entries.toList()
+      ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
+
+    // Take top 5 habits or all if less than 5
+    final topHabits = sortedEntries.take(5).toList();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: WillHistoryPage.cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -173,35 +322,44 @@ class WillHistoryPage extends StatelessWidget {
           const Text(
             'Will Breakdown',
             style: TextStyle(
-              color: textColor,
+              color: WillHistoryPage.textColor,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 20),
-          _buildWillSourceItem(
-            'Morning Meditation',
-            '+150',
-            positiveColor,
-          ),
-          const SizedBox(height: 12),
-          _buildWillSourceItem(
-            'Exercise Routine',
-            '+120',
-            positiveColor,
-          ),
-          const SizedBox(height: 12),
-          _buildWillSourceItem(
-            'Procrastination',
-            '-80',
-            negativeColor,
-          ),
-          const SizedBox(height: 12),
-          _buildWillSourceItem(
-            'Late Night Screen Time',
-            '-40',
-            negativeColor,
-          ),
+          ...topHabits.map((entry) {
+            final habit = habits.firstWhere(
+                  (h) => h.id == entry.key,
+              orElse: () => habits.first,
+            );
+
+            final willValue = entry.value;
+            final isPositive = willValue >= 0;
+            final color = isPositive ?
+            WillHistoryPage.positiveColor :
+            WillHistoryPage.negativeColor;
+
+            return Column(
+              children: [
+                _buildWillSourceItem(
+                  habit.name,
+                  (isPositive ? '+' : '') + willValue.toString(),
+                  color,
+                ),
+                const SizedBox(height: 12),
+              ],
+            );
+          }).toList(),
+
+          if (topHabits.isEmpty)
+            const Text(
+              'No will data available for the selected period',
+              style: TextStyle(
+                color: WillHistoryPage.secondaryTextColor,
+                fontSize: 14,
+              ),
+            ),
         ],
       ),
     );
@@ -211,11 +369,14 @@ class WillHistoryPage extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: secondaryTextColor,
-            fontSize: 14,
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: WillHistoryPage.secondaryTextColor,
+              fontSize: 14,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         Text(
@@ -230,35 +391,37 @@ class WillHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildWeeklyStats() {
-    // Example data for weekly stats
-    final weeklyStats = WeeklyStatsValue(
-      dailyStats: [
-        DayStats(day: 'Mon', value: 70),
-        DayStats(day: 'Tue', value: 85),
-        DayStats(day: 'Wed', value: 60),
-        DayStats(day: 'Thu', value: 90),
-        DayStats(day: 'Fri', value: 75),
-        DayStats(day: 'Sat', value: 80),
-        DayStats(day: 'Sun', value: 95),
-      ],
-    );
+  Widget _buildWeeklyTotalWill() {
+    final weeklyWillStats = _calculateWeeklyTotalWill();
+    final netWill = _totalWillGained - _totalWillLost;
+    final selectedDateFormatted = DateFormat('MMMM yyyy').format(_selectedDate);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: WillHistoryPage.cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Weekly Performance',
-            style: TextStyle(
-              color: textColor,
+          Text(
+            'Will Performance - $selectedDateFormatted',
+            style: const TextStyle(
+              color: WillHistoryPage.textColor,
               fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Net Will: ${netWill >= 0 ? "+$netWill" : netWill}',
+            style: TextStyle(
+              color: netWill >= 0 ?
+              WillHistoryPage.positiveColor :
+              WillHistoryPage.negativeColor,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -267,14 +430,60 @@ class WillHistoryPage extends StatelessWidget {
             height: 200,
             child: WeeklyStatsWidget(
               title: '',
-              stats: weeklyStats,
+              stats: weeklyWillStats,
               height: 200,
-              backgroundColor: cardColor,
-              textColor: textColor,
+              backgroundColor: WillHistoryPage.cardColor,
+              textColor: WillHistoryPage.textColor,
             ),
           ),
         ],
       ),
     );
+  }
+
+  WeeklyStatsValue _calculateWeeklyTotalWill() {
+    final habitState = ref.read(habitStateProvider);
+    final now = DateTime.now();
+
+    // Calculate the start of each week for the last 4 weeks
+    final List<DateTime> weekStarts = [];
+    final currentWeekStart = DateTime(
+        now.year, now.month, now.day - (now.weekday - 1)
+    );
+
+    for (int i = 0; i < 4; i++) {
+      weekStarts.add(
+          currentWeekStart.subtract(Duration(days: 7 * i))
+      );
+    }
+    weekStarts.sort(); // Sort chronologically
+
+    final dailyStats = <DayStats>[];
+    final weekNames = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+
+    // For each week, calculate the total will
+    for (int i = 0; i < weekStarts.length; i++) {
+      final weekStart = weekStarts[i];
+      int weekTotal = 0;
+
+      // Sum will for each day in the week
+      for (int day = 0; day < 7; day++) {
+        final date = weekStart.add(Duration(days: day));
+        final dayLog = habitState.getDayLog(date);
+
+        if (dayLog != null) {
+          dayLog.habits.forEach((_, habitData) {
+            weekTotal += habitData.willObtained;
+          });
+        }
+      }
+
+      dailyStats.add(DayStats(
+        day: weekNames[i],
+        value: weekTotal.toDouble(),
+      ));
+    }
+
+    return WeeklyStatsValue(dailyStats: dailyStats);
   }
 }

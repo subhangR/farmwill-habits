@@ -13,7 +13,7 @@ final mainRouterV2 = GoRouter(
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
-        return ScaffoldWithNavbarV2(navigationShell);
+        return navigationShell;
       },
       branches: [
         StatefulShellBranch(

@@ -19,7 +19,6 @@ class _EditHabitPageState extends State<EditHabitPage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   HabitNature _nature = HabitNature.positive;
-  int _scorePerUnit = 1;
   WeeklySchedule _weeklySchedule = const WeeklySchedule();
   GoalType _goalType = GoalType.repetitions;
   bool _hasGoal = true;
@@ -47,21 +46,20 @@ class _EditHabitPageState extends State<EditHabitPage> {
     super.initState();
     _nameController = TextEditingController(text: widget.userHabit?.name ?? '');
 
-
     if (widget.userHabit != null) {
       _nature = widget.userHabit!.nature;
       _weeklySchedule = widget.userHabit!.weeklySchedule ?? const WeeklySchedule();
+      _goalType = widget.userHabit!.goalType;
     }
 
     _repetitions = widget.userHabit?.targetReps ?? 1;
-    _willPerRep = widget.userHabit?.scorePerRep ?? 1;
+    _willPerRep = widget.userHabit?.willPerRep ?? 1;
     _willPerRepController = TextEditingController(text: _willPerRep.toString());
     _willPerMinuteController = TextEditingController(text: _willPerMinute.toString());
     _maxScoreController = TextEditingController(text: _maxScore.toString());
     _maxWillController = TextEditingController(text: _maxScore.toString());
     _duration = widget.userHabit?.targetMinutes ?? 5;
     _startingWillController = TextEditingController(text: _startingWill.toString()); // Initialize controller
-
   }
 
   @override
@@ -89,22 +87,22 @@ class _EditHabitPageState extends State<EditHabitPage> {
     // }
     return null;
   }
-
   void _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
       final habit = UserHabit(
+        goalType: _goalType,
         uid: FirebaseAuth.instance.currentUser!.uid,
         id: widget.userHabit?.id ?? FirebaseFirestore.instance.collection('user_habits').doc().id,
         name: _nameController.text,
         habitType: HabitType.regular,
         nature: _nature,
         weeklySchedule: _weeklySchedule,
-        targetReps: _repetitions,
-        targetMinutes: _duration,
-        scorePerRep: _willEnabled ? _willPerRep : null,
-        scorePerMinute: _willEnabled ? _willPerMinute : null,
+        targetReps: _goalType == GoalType.repetitions ? _repetitions : 0,
+        targetMinutes: _goalType == GoalType.duration ? _duration : 0,
+        willPerRep: _willEnabled && _goalType == GoalType.repetitions ? _willPerRep : null,
+        willPerMin: _willEnabled && _goalType == GoalType.duration ? _willPerMinute : null,
         maxScore: _willEnabled ? _maxWill : null,
         startingWill: _willEnabled ? _startingWill : null,
         createdAt: widget.userHabit?.createdAt ?? DateTime.now(),
@@ -143,7 +141,6 @@ class _EditHabitPageState extends State<EditHabitPage> {
       }
     }
   }
-
   Widget _buildGoalInput({
     required String title,
     required int value,
@@ -196,8 +193,7 @@ class _EditHabitPageState extends State<EditHabitPage> {
 
 
   bool _willEnabled = false;  // Add this with other state variables
-
-
+  // Add this with other state variables
   Widget _buildWillSection() {
     if (!_willEnabled) {
       return _buildWillToggle();
@@ -207,8 +203,8 @@ class _EditHabitPageState extends State<EditHabitPage> {
 
     void ensureNegativeValues() {
       if (isNegative) {
-        if (_willPerRep > 0) _willPerRep *= -1;
-        if (_willPerMinute > 0) _willPerMinute *= -1;
+        if (_goalType == GoalType.repetitions && _willPerRep > 0) _willPerRep *= -1;
+        if (_goalType == GoalType.duration && _willPerMinute > 0) _willPerMinute *= -1;
         if (_maxWill > 0) _maxWill *= -1;
 
         _willPerRepController.text = _willPerRep.abs().toString();
@@ -244,37 +240,42 @@ class _EditHabitPageState extends State<EditHabitPage> {
                 isNegative: false, // Starting will is always positive
               ),
               const SizedBox(height: 16),
-              _buildWillInput(
-                title: isNegative ? 'Will Lost Per Rep' : 'Will Gained Per Rep',
-                controller: _willPerRepController,
-                onChanged: (value) {
-                  final intValue = int.tryParse(value);
-                  if (intValue != null) {
-                    setState(() {
-                      _willPerRep = isNegative ? -intValue.abs() : intValue;
-                      _willPerRepController.text = intValue.abs().toString();
-                      _updateMaxWill();
-                    });
-                  }
-                },
-                isNegative: isNegative,
-              ),
-              const SizedBox(height: 16),
-              _buildWillInput(
-                title: isNegative ? 'Will Lost Per Minute' : 'Will Gained Per Minute',
-                controller: _willPerMinuteController,
-                onChanged: (value) {
-                  final intValue = int.tryParse(value);
-                  if (intValue != null) {
-                    setState(() {
-                      _willPerMinute = isNegative ? -intValue.abs() : intValue;
-                      _willPerMinuteController.text = intValue.abs().toString();
-                      _updateMaxWill();
-                    });
-                  }
-                },
-                isNegative: isNegative,
-              ),
+
+              // Display appropriate will input based on goal type
+              if (_goalType == GoalType.repetitions)
+                _buildWillInput(
+                  title: isNegative ? 'Will Lost Per Rep' : 'Will Gained Per Rep',
+                  controller: _willPerRepController,
+                  onChanged: (value) {
+                    final intValue = int.tryParse(value);
+                    if (intValue != null) {
+                      setState(() {
+                        _willPerRep = isNegative ? -intValue.abs() : intValue;
+                        _willPerRepController.text = intValue.abs().toString();
+                        _updateMaxWill();
+                      });
+                    }
+                  },
+                  isNegative: isNegative,
+                ),
+
+              if (_goalType == GoalType.duration)
+                _buildWillInput(
+                  title: isNegative ? 'Will Lost Per Minute' : 'Will Gained Per Minute',
+                  controller: _willPerMinuteController,
+                  onChanged: (value) {
+                    final intValue = int.tryParse(value);
+                    if (intValue != null) {
+                      setState(() {
+                        _willPerMinute = isNegative ? -intValue.abs() : intValue;
+                        _willPerMinuteController.text = intValue.abs().toString();
+                        _updateMaxWill();
+                      });
+                    }
+                  },
+                  isNegative: isNegative,
+                ),
+
               const SizedBox(height: 16),
               _buildWillInput(
                 title: isNegative ? 'Maximum Will Losable' : 'Maximum Will Gainable',
@@ -300,15 +301,18 @@ class _EditHabitPageState extends State<EditHabitPage> {
   void _updateMaxWill() {
     setState(() {
       bool isNegative = _nature == HabitNature.negative;
-      int repsComponent = _repetitions * _willPerRep;
-      int durationComponent = _duration * _willPerMinute;
-      _maxWill = repsComponent + durationComponent;
+
+      // Calculate max will based on goal type
+      if (_goalType == GoalType.repetitions) {
+        _maxWill = _repetitions * _willPerRep;
+      } else {
+        _maxWill = _duration * _willPerMinute;
+      }
 
       // Update the display value (absolute)
       _maxWillController.text = _maxWill.abs().toString();
     });
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -449,7 +453,6 @@ class _EditHabitPageState extends State<EditHabitPage> {
     );
   }
 
-
   Widget _buildFrequencySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,58 +513,146 @@ class _EditHabitPageState extends State<EditHabitPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildGoalInput(
-                  title: 'Reps',
-                  value: _repetitions,
-                  onDecrease: () {
-                    if (_repetitions > 1) {
+                // Goal Type Tabs
+                _buildGoalTypeTabs(),
+                const SizedBox(height: 24),
+
+                // Display appropriate goal input based on selected goal type
+                if (_goalType == GoalType.repetitions)
+                  _buildGoalInput(
+                    title: 'Reps',
+                    value: _repetitions,
+                    onDecrease: () {
+                      if (_repetitions > 1) {
+                        setState(() {
+                          _repetitions--;
+                          _updateMaxWill();
+                        });
+                      }
+                    },
+                    onIncrease: () {
                       setState(() {
-                        _repetitions--;
+                        _repetitions++;
                         _updateMaxWill();
                       });
-                    }
-                  },
-                  onIncrease: () {
-                    setState(() {
-                      _repetitions++;
-                      _updateMaxWill();
-                    });
-                  },
-                  onEdit: (value) {
-                    setState(() {
-                      _repetitions = value;
-                      _updateMaxWill();
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildGoalInput(
-                  title: 'Duration (minutes)',
-                  value: _duration,
-                  onDecrease: () {
-                    if (_duration > 1) {
+                    },
+                    onEdit: (value) {
                       setState(() {
-                        _duration -= 5;
+                        _repetitions = value;
                         _updateMaxWill();
                       });
-                    }
-                  },
-                  onIncrease: () {
-                    setState(() {
-                      _duration += 5;
-                      _updateMaxWill();
-                    });
-                  },
-                  onEdit: (value) {
-                    setState(() {
-                      _duration = value;
-                      _updateMaxWill();
-                    });
-                  },
-                ),
+                    },
+                  ),
+
+                if (_goalType == GoalType.duration)
+                  _buildGoalInput(
+                    title: 'Duration (minutes)',
+                    value: _duration,
+                    onDecrease: () {
+                      if (_duration > 5) {
+                        setState(() {
+                          _duration -= 5;
+                          _updateMaxWill();
+                        });
+                      }
+                    },
+                    onIncrease: () {
+                      setState(() {
+                        _duration += 5;
+                        _updateMaxWill();
+                      });
+                    },
+                    onEdit: (value) {
+                      setState(() {
+                        _duration = value;
+                        _updateMaxWill();
+                      });
+                    },
+                  ),
+
                 const SizedBox(height: 24),
                 _buildWillSection(),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalTypeTabs() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2A2A2A),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        children: [
+          // Repetitions Tab
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _goalType = GoalType.repetitions;
+                  _updateMaxWill();
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _goalType == GoalType.repetitions
+                      ? Colors.white.withOpacity(0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Center(
+                  child: Text(
+                    'Repetitions',
+                    style: TextStyle(
+                      color: _goalType == GoalType.repetitions
+                          ? Colors.white
+                          : Colors.grey,
+                      fontWeight: _goalType == GoalType.repetitions
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Duration Tab
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _goalType = GoalType.duration;
+                  _updateMaxWill();
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _goalType == GoalType.duration
+                      ? Colors.white.withOpacity(0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Center(
+                  child: Text(
+                    'Duration',
+                    style: TextStyle(
+                      color: _goalType == GoalType.duration
+                          ? Colors.white
+                          : Colors.grey,
+                      fontWeight: _goalType == GoalType.duration
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

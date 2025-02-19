@@ -1,9 +1,12 @@
 // lib/models/habit_data.dart
 
+import 'package:farmwill_habits/models/habits.dart';
+
 class HabitData {
   final int reps;                   // Current number of repetitions completed
   final int duration;               // Duration in minutes
-  final int willObtained;          // Amount of will points obtained
+  final int willObtained;
+  final GoalType goalType;// Amount of will points obtained
   final int targetReps;            // Target number of repetitions
   final int targetDuration;        // Target duration in minutes
   final int targetWill;            // Target will points
@@ -28,6 +31,7 @@ class HabitData {
     required this.willPerDuration,
     required this.maxWill,
     required this.startingWill,
+    required this.goalType,
     this.isCompleted = false,
     this.lastUpdated,
     this.timestamps,
@@ -81,6 +85,7 @@ class HabitData {
       reps: map['reps'] ?? 0,
       duration: map['duration'] ?? 0,
       willObtained: map['willObtained'] ?? 0,
+      goalType: map['goalType'] ?? GoalType.repetitions,
       targetReps: map['targetReps'] ?? 0,
       targetDuration: map['targetDuration'] ?? 0,
       targetWill: map['targetWill'] ?? 0,
@@ -126,6 +131,7 @@ class HabitData {
       targetDuration: targetDuration ?? this.targetDuration,
       targetWill: targetWill ?? this.targetWill,
       willPerRep: willPerRep ?? this.willPerRep,
+      goalType: goalType,
       willPerDuration: willPerDuration ?? this.willPerDuration,
       maxWill: maxWill ?? this.maxWill,
       startingWill: startingWill ?? this.startingWill,
@@ -142,14 +148,12 @@ class HabitData {
     final newReps = reps + 1;
     final newWillObtained = calculateWillPoints();
     final newIsCompleted = newReps >= targetReps;
-    final newTimestamps = [...(timestamps ?? []), DateTime.now()];
 
     return copyWith(
       reps: newReps,
       willObtained: newWillObtained,
       isCompleted: newIsCompleted,
       lastUpdated: DateTime.now(),
-      timestamps: newTimestamps,
     );
   }
 
@@ -182,6 +186,116 @@ class HabitData {
         ...(metadata ?? {}),
         ...(other.metadata ?? {}),
       },
+    );
+  }
+}
+
+
+class UserMonthLog {
+  final String monthKey;
+  final Map<String,UserDayLog> days;
+  final String userId;
+
+  const UserMonthLog({
+    required this.monthKey,
+    required this.days,
+    required this.userId,
+  });
+
+  // Convert to Map for storing in NoSQL
+  Map<String, dynamic> toMap() {
+    return {
+      'monthKey': monthKey,
+      'days':  days.map((key, value) => MapEntry(key, value.toMap())),
+      'userId':  userId,
+    };
+  }
+
+  // Create from Map when fetching from NoSQL
+  factory UserMonthLog.fromMap(Map<String, dynamic> map) {
+    return UserMonthLog(
+      monthKey: map['monthKey'] ?? '',
+      userId: map['userId'] ?? '',
+      days:
+      (map['days'] as Map<String, dynamic>).map((key, value) => MapEntry(key, UserDayLog.fromMap(value))),
+    );
+  }
+}
+
+
+class UserDayLog {
+  final DateTime date;
+  final Map<String, HabitData> habits; // Map of habitId to HabitData
+
+  const UserDayLog({
+    required this.date,
+    required this.habits,
+  });
+
+  String dateKey() {
+    return '${date.year}-${date.month}-${date.day}';
+  }
+
+  // Convert to Map for storing in NoSQL
+  Map<String, dynamic> toMap() {
+    return {
+      'date': date.toIso8601String(),
+      'habits': habits.map((key, value) => MapEntry(key, value.toMap())),
+    };
+  }
+
+  // Create from Map when fetching from NoSQL
+  factory UserDayLog.fromMap(Map<String, dynamic> map) {
+    return UserDayLog(
+      date: DateTime.parse(map['date']),
+      habits: (map['habits'] as Map<String, dynamic>).map(
+            (key, value) => MapEntry(key, HabitData.fromMap(value)),
+      ),
+    );
+  }
+
+  // Create a copy with some fields updated
+  UserDayLog copyWith({
+    DateTime? date,
+    Map<String, HabitData>? habits,
+  }) {
+    return UserDayLog(
+      date: date ?? this.date,
+      habits: habits ?? this.habits,
+    );
+  }
+}
+
+class UserHabitStatus {
+  final String habitId;
+  final DateTime date;
+  final bool completed;
+  final double progress; // Progress towards goal
+
+  const UserHabitStatus({
+    required this.habitId,
+    required this.date,
+    required this.completed,
+    required this.progress,
+  });
+
+  // Convert to Map for storing in NoSQL
+  Map<String, dynamic> toMap() {
+    return {
+      'habitId': habitId,
+      'date': date.toIso8601String(),
+      'completed': completed,
+      'progress': progress,
+    };
+  }
+
+  // Create from Map when fetching from NoSQL
+  factory UserHabitStatus.fromMap(Map<String, dynamic> map) {
+    return UserHabitStatus(
+      habitId: map['habitId'] ?? '',
+      date: DateTime.parse(map['date']),
+      completed: map['completed'] ?? false,
+      progress: map['progress']?.toDouble() ?? 0,
     );
   }
 }
