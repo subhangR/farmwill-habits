@@ -12,14 +12,14 @@ class PieLineWeeklyStats extends StatefulWidget {
   final Color backgroundColor;
 
   const PieLineWeeklyStats({
-    Key? key,
+    super.key,
     required this.title,
     required this.stats,
     this.height = 200,
     this.baseColor = const Color(0xFF7166F9),
     this.textColor = const Color(0xFFF5F5F5),
     this.backgroundColor = const Color(0xFF2D2D2D),
-  }) : super(key: key);
+  });
 
   @override
   State<PieLineWeeklyStats> createState() => _PieLineWeeklyStatsState();

@@ -9,7 +9,7 @@ class UserDetailsInputPage extends StatelessWidget {
   final User user;
   final Function(FreeUser freeUser) onComplete;
 
-  UserDetailsInputPage({required this.user, required this.onComplete});
+  UserDetailsInputPage({super.key, required this.user, required this.onComplete});
 
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
@@ -32,7 +32,7 @@ class UserDetailsInputPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('User Information'),
+        title: const Text('User Information'),
         backgroundColor: Colors.blueAccent,
       ),
       body: Padding(
@@ -40,7 +40,7 @@ class UserDetailsInputPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Please enter your details',
               style: TextStyle(
                 fontSize: 24,
@@ -48,7 +48,7 @@ class UserDetailsInputPage extends StatelessWidget {
                 color: Colors.blueAccent,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             TextField(
               controller: _firstNameController,
               decoration: InputDecoration(
@@ -56,10 +56,10 @@ class UserDetailsInputPage extends StatelessWidget {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
                 ),
-                prefixIcon: Icon(Icons.person, color: Colors.blueAccent),
+                prefixIcon: const Icon(Icons.person, color: Colors.blueAccent),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             TextField(
               controller: _lastNameController,
               decoration: InputDecoration(
@@ -67,12 +67,12 @@ class UserDetailsInputPage extends StatelessWidget {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
                 ),
-                prefixIcon: Icon(Icons.person, color: Colors.blueAccent),
+                prefixIcon: const Icon(Icons.person, color: Colors.blueAccent),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-            Spacer(),
+            const Spacer(),
             ElevatedButton(
               onPressed: () async {
                 final firstName = _firstNameController.text;
@@ -80,7 +80,7 @@ class UserDetailsInputPage extends StatelessWidget {
 
                 if (firstName.isEmpty || lastName.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('Please fill in all fields'),
                       backgroundColor: Colors.orange,
                     ),
@@ -89,14 +89,14 @@ class UserDetailsInputPage extends StatelessWidget {
                   await _saveUserInfo(user);
                 }
               },
-              child: Text('Submit'),
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                textStyle: TextStyle(fontSize: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                textStyle: const TextStyle(fontSize: 18),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8.0),
                 ),
               ),
+              child: Text('Submit'),
             ),
           ],
         ),

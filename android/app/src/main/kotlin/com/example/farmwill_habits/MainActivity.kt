@@ -1,4 +1,4 @@
-package com.example.farmwill_habits
+package com.farmwill.habits
 
 import io.flutter.embedding.android.FlutterActivity
 

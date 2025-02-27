@@ -9,12 +9,12 @@ class HabitService {
   final HabitsRepository habitsRepository = GetIt.I<HabitsRepository>();
 
   // Cache storage
-  Map<String, List<UserHabit>> _userHabitsCache = {};
-  Map<String, Map<String, UserMonthLog>> _monthLogsCache = {}; // userId -> monthKey -> MonthLog
+  final Map<String, List<UserHabit>> _userHabitsCache = {};
+  final Map<String, Map<String, UserMonthLog>> _monthLogsCache = {}; // userId -> monthKey -> MonthLog
 
   // Cache invalidation timestamp
-  Map<String, DateTime> _userHabitsCacheTimestamp = {};
-  Map<String, Map<String, DateTime>> _monthLogsCacheTimestamp = {};
+  final Map<String, DateTime> _userHabitsCacheTimestamp = {};
+  final Map<String, Map<String, DateTime>> _monthLogsCacheTimestamp = {};
 
   // Cache duration (5 minutes for habits, 2 minutes for logs)
   static const Duration _habitsCacheDuration = Duration(minutes: 5);

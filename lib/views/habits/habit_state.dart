@@ -1,9 +1,9 @@
-
 // Enhanced UserHabitState with complete state management
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../models/goals.dart';
 import '../../models/habit_data.dart';
 import '../../models/habits.dart';
 import '../../repositories/habits_repository.dart';
@@ -66,8 +66,6 @@ class UserHabitState extends ChangeNotifier {
     // Return the day log for the specified day
     return monthLog.days[dayKey];
   }
-
-  // Load habits and related data
   Future<void> loadHabitsAndData(String userId, [DateTime? date]) async {
     try {
       _isLoading = true;
@@ -81,6 +79,9 @@ class UserHabitState extends ChangeNotifier {
 
       // Load month logs
       final monthLogs = await _habitsRepository.getAllLogs(userId);
+
+      // Load goals
+      final userGoals = await _habitsRepository.getAllGoals(userId);
 
       // Convert list of month logs to map
       final Map<String, UserMonthLog> monthLogsMap = {};
@@ -106,16 +107,16 @@ class UserHabitState extends ChangeNotifier {
       _monthLogs = monthLogsMap;
       _habitsData = currentDayLog != null ? currentDayLog.habits : {};
       _willPoints = totalWill;
+      _goals = userGoals;
       _isLoading = false;
 
       notifyListeners();
     } catch (e) {
-      _error = 'Failed to load habits: $e';
+      _error = 'Failed to load data: $e';
       _isLoading = false;
       notifyListeners();
     }
   }
-
   // Helper method to get day log from a map of month logs
   UserDayLog? _getDayLogFromMap(DateTime date, Map<String, UserMonthLog> monthLogsMap) {
     final monthKey = '${date.year}-${date.month.toString().padLeft(2, '0')}';
@@ -361,4 +362,92 @@ class UserHabitState extends ChangeNotifier {
 
     return streak;
   }
+
+  List<UserGoal> _goals = [];
+  List<UserGoal> get goals => _goals;
+
+// Load goals
+  Future<void> loadGoals(String userId) async {
+    try {
+      _isLoading = true;
+      _error = null;
+
+      final userGoals = await _habitsRepository.getAllGoals(userId);
+      _goals = userGoals;
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to load goals: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+// Add a new goal
+  Future<void> addGoal(String userId, UserGoal goal) async {
+    try {
+      await _habitsRepository.createGoal(userId, goal);
+      await loadGoals(userId);
+    } catch (e) {
+      _error = 'Failed to create goal: $e';
+      notifyListeners();
+    }
+  }
+
+// Update an existing goal
+  Future<void> updateGoal(String userId, UserGoal goal) async {
+    try {
+      await _habitsRepository.updateGoal(userId, goal);
+      await loadGoals(userId);
+    } catch (e) {
+      _error = 'Failed to update goal: $e';
+      notifyListeners();
+    }
+  }
+
+// Delete a goal
+  Future<void> deleteGoal(String userId, String goalId) async {
+    try {
+      await _habitsRepository.deleteGoal(userId, goalId);
+      await loadGoals(userId);
+    } catch (e) {
+      _error = 'Failed to delete goal: $e';
+      notifyListeners();
+    }
+  }
+
+// Add habit to goal
+  Future<void> addHabitToGoal(String userId, String goalId, String habitId) async {
+    try {
+      await _habitsRepository.addHabitToGoal(userId, goalId, habitId);
+      await loadGoals(userId);
+    } catch (e) {
+      _error = 'Failed to add habit to goal: $e';
+      notifyListeners();
+    }
+  }
+
+// Remove habit from goal
+  Future<void> removeHabitFromGoal(String userId, String goalId, String habitId) async {
+    try {
+      await _habitsRepository.removeHabitFromGoal(userId, goalId, habitId);
+      await loadGoals(userId);
+    } catch (e) {
+      _error = 'Failed to remove habit from goal: $e';
+      notifyListeners();
+    }
+  }
+
+  int calculateTotalWill() {
+    int totalWill = 0;
+    
+    // Sum up will from all habit data
+    habitsData.forEach((habitId, habitData) {
+      totalWill += habitData.willObtained;
+    });
+    
+    return totalWill;
+  }
+
 }

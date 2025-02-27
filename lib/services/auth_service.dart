@@ -29,12 +29,12 @@ class AuthService {
 
 
   Future<bool> setHunterName(String uid, String hunterName) async {
-    final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-    final userRef = _firestore.collection('users').doc(uid);
-    final hunterRef = _firestore.collection('hunters').doc(hunterName);
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(uid);
+    final hunterRef = firestore.collection('hunters').doc(hunterName);
 
     try {
-      bool success = await _firestore.runTransaction((transaction) async {
+      bool success = await firestore.runTransaction((transaction) async {
         final hunterDoc = await transaction.get(hunterRef);
 
         if (hunterDoc.exists) {

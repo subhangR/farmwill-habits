@@ -1,4 +1,5 @@
 import 'package:farmwill_habits/models/habits.dart';
+import 'package:farmwill_habits/views/habits/create_habit_page_v2.dart';
 import 'package:farmwill_habits/views/habits/widgets/calendar_widget.dart';
 import 'package:farmwill_habits/views/habits/widgets/weekly_stats_widgets/circular_weekly_stats.dart';
 import 'package:farmwill_habits/views/habits/widgets/weekly_stats_widgets/line_scatterd_weekly_stats.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/habit_data.dart';
 import '../../services/habit_service.dart';
@@ -252,7 +254,7 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditHabitPage(userHabit: widget.userHabit),
+        builder: (context) => EditHabitPageV2(userHabit: widget.userHabit),
       ),
     ).then((value) {
       // Refresh data when returning from edit page
@@ -260,6 +262,42 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         _loadInitialData();
       }
     });
+  }
+
+  // Method to perform the actual deletion
+  Future<void> _confirmDelete() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print("Confirming deletion of habit: ${widget.userHabit.id}");
+      
+      // Use the habitState provider to delete the habit
+      final habitState = ref.read(habitStateProvider);
+      await habitState.deleteHabit(_userId, widget.userHabit.id);
+      
+      print("Habit deleted successfully through provider");
+      
+      // Return to previous screen after successful deletion
+      if (mounted) {
+        print("Navigating back after deletion");
+        Navigator.pop(context, true); // Pass true to indicate successful deletion
+      }
+    } catch (e) {
+      print("Error in _confirmDelete: $e");
+      
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Show error dialog
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete habit: $e')),
+        );
+      }
+    }
   }
 
   // Method to handle deleting the habit
@@ -303,63 +341,10 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     );
   }
 
-  // Method to perform the actual deletion
-  Future<void> _confirmDelete() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final habitState = ref.read(habitStateProvider);
-      await habitState.deleteHabit(_userId, widget.userHabit.id);
-
-      // Return to previous screen after successful deletion
-      if (mounted) {
-        Navigator.pop(context, true); // Pass true to indicate successful deletion
-      }
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Show error dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              backgroundColor: HabitDetailsPage.cardColor,
-              title: const Text(
-                'Error',
-                style: TextStyle(color: HabitDetailsPage.textColor),
-              ),
-              content: Text(
-                'Failed to delete habit: $e',
-                style: const TextStyle(color: HabitDetailsPage.secondaryTextColor),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text(
-                    'OK',
-                    style: TextStyle(color: HabitDetailsPage.accentColor),
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Watch habit state for changes
     final habitState = ref.watch(habitStateProvider);
-    final isRepetitionsMode = widget.userHabit.goalType == GoalType.repetitions;
 
     if (_isLoading) {
       return const Scaffold(
@@ -412,16 +397,12 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
             _buildStreakCards(),
             const SizedBox(height: 32),
             // Show either repetitions or duration stats based on goal type
-            isRepetitionsMode
-                ? _buildTotalRepetitions()
-                : _buildDuration(),
+            _buildTotalRepetitions(),
             const SizedBox(height: 32),
             _buildCompletionRate(),
             const SizedBox(height: 32),
             // Show weekly stats based on goal type
-            isRepetitionsMode
-                ? _buildRepsWeeklyStats()
-                : _buildDurationWeeklyStats(),
+            _buildRepsWeeklyStats(),
             const SizedBox(height: 32),
             _buildMonthlyStats(),
             const SizedBox(height: 32),
@@ -452,13 +433,7 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
           final habitData = dayLog.habits[widget.userHabit.id]!;
 
-          if (widget.userHabit.goalType == GoalType.repetitions) {
-            final targetReps = widget.userHabit.targetReps ?? 1;
-            completion = targetReps > 0 ? (habitData.reps / targetReps).clamp(0.0, 1.0) : 0.0;
-          } else {
-            final targetDuration = widget.userHabit.targetMinutes ?? 1;
-            completion = targetDuration > 0 ? (habitData.duration / targetDuration).clamp(0.0, 1.0) : 0.0;
-          }
+
         }
 
         dailyCompletions.add(DayCompletion(
@@ -474,10 +449,9 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     );
 
     final monthName = DateFormat('MMMM yyyy').format(_selectedDate);
-    final goalType = widget.userHabit.goalType == GoalType.repetitions ? 'Repetitions' : 'Duration';
 
     return MonthlyCalendarStats(
-      title: '$monthName - $goalType',
+      title: '$monthName ',
       stats: monthlyStats,
       height: 400,
       baseColor: HabitDetailsPage.accentColor,
@@ -638,17 +612,7 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     );
   }
 
-  Widget _buildDuration() {
-    final createdDate = widget.userHabit.createdAt;
-    final formattedDate = DateFormat('MMMM d, yyyy').format(createdDate);
-    final goalValue = widget.userHabit.targetMinutes ?? 0;
 
-    return _buildSection(
-      'Total Duration',
-      '$_totalDuration mins',
-      'Target: $goalValue mins | Since $formattedDate',
-    );
-  }
 
   Widget _buildCompletionRate() {
     String message;
@@ -714,13 +678,12 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
   Widget _buildHabitCreatedOn() {
     final createdDate = widget.userHabit.createdAt;
     final formattedDate = DateFormat('MMMM d, yyyy').format(createdDate);
-    final habitType = widget.userHabit.goalType == GoalType.repetitions ? 'Repetitions' : 'Duration';
     final natureType = widget.userHabit.nature == HabitNature.positive ? 'Positive' : 'Negative';
 
     return _buildSection(
       'Habit created on',
       formattedDate,
-      'Type: $natureType | Goal: $habitType',
+      'Type: $natureType',
     );
   }
 
@@ -728,13 +691,10 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     // Apply color based on goal type
     Color sectionColor;
     if (widget.userHabit.nature == HabitNature.positive) {
-      sectionColor = widget.userHabit.goalType == GoalType.repetitions
-          ? const Color(0xFF4CAF50).withOpacity(0.2)  // Green tint for positive reps
-          : const Color(0xFF2196F3).withOpacity(0.2); // Blue tint for positive duration
+      sectionColor =
+          const Color(0xFF4CAF50).withOpacity(0.2);
     } else {
-      sectionColor = widget.userHabit.goalType == GoalType.repetitions
-          ? const Color(0xFFFF5722).withOpacity(0.2)  // Orange tint for negative reps
-          : const Color(0xFFE91E63).withOpacity(0.2); // Pink tint for negative duration
+      sectionColor = const Color(0xFFFF5722).withOpacity(0.2);  // Orange tint for negative reps
     }
 
     return Container(

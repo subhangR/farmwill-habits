@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'signup_view.dart';
 
 class SigninPage extends StatefulWidget {
+  const SigninPage({super.key});
+
   @override
   _SigninPageState createState() => _SigninPageState();
 }
@@ -40,12 +42,12 @@ class _SigninPageState extends State<SigninPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Error'),
+        title: const Text('Error'),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Okay'),
+            child: const Text('Okay'),
           ),
         ],
       ),
@@ -62,7 +64,7 @@ class _SigninPageState extends State<SigninPage> {
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -71,17 +73,17 @@ class _SigninPageState extends State<SigninPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 50),
+                  const SizedBox(height: 50),
                   Text(
                     'Welcome Back',
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 50),
+                  const SizedBox(height: 50),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Email',
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: const Icon(Icons.email),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -99,11 +101,11 @@ class _SigninPageState extends State<SigninPage> {
                       _email = value!;
                     },
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePassword
                             ? Icons.visibility
@@ -131,21 +133,21 @@ class _SigninPageState extends State<SigninPage> {
                       _password = value!;
                     },
                   ),
-                  SizedBox(height: 30),
+                  const SizedBox(height: 30),
                   ElevatedButton(
                     onPressed: _signin,
-                    child: Text('Sign In'),
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 15),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    child: Text('Sign In'),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextButton(
                     onPressed: _navigateToSignupView,
-                    child: Text('Don\'t have an account? Sign up'),
+                    child: const Text('Don\'t have an account? Sign up'),
                   ),
                 ],
               ),

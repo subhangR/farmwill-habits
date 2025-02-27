@@ -13,11 +13,11 @@ class StatsCircles extends StatelessWidget {
   final bool isSelected;
 
   const StatsCircles({
-    Key? key,
+    super.key,
     required this.stats,
     required this.size,
     this.isSelected = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -51,12 +51,12 @@ class CalendarWidget extends StatefulWidget {
   final String? locale;
 
   const CalendarWidget({
-    Key? key,
+    super.key,
     this.dateStats,
     this.onDateSelected,
     this.initialDate,
     this.locale,
-  }) : super(key: key);
+  });
 
   @override
   State<CalendarWidget> createState() => _CalendarWidgetState();
@@ -243,7 +243,7 @@ class _CalendarWidgetState extends State<CalendarWidget> {
     final double circleSize = dayWidth * 0.9;
     final double innerSize = circleSize * 0.9;
 
-    return Container(
+    return SizedBox(
       width: dayWidth,
       height: 40,
       child: Stack(

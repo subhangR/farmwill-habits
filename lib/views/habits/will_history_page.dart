@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'habit_state.dart';
 import '../../models/habit_data.dart';
@@ -11,7 +12,7 @@ import 'widgets/weekly_stats_widgets/line_scatterd_weekly_stats.dart';
 import 'widgets/weekly_stats_widgets/weekly_stats_widget.dart';
 
 class WillHistoryPage extends ConsumerStatefulWidget {
-  const WillHistoryPage({Key? key}) : super(key: key);
+  const WillHistoryPage({super.key});
 
   // Custom colors for dark theme (keeping consistent with HabitDetailsPage)
   static const backgroundColor = Color(0xFF1A1A1A);
@@ -26,10 +27,12 @@ class WillHistoryPage extends ConsumerStatefulWidget {
   ConsumerState<WillHistoryPage> createState() => _WillHistoryPageState();
 }
 
-class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
+class _WillHistoryPageState extends ConsumerState<WillHistoryPage> with SingleTickerProviderStateMixin {
   DateTime _selectedDate = DateTime.now();
-  String _userId = FirebaseAuth.instance.currentUser!.uid;
+  final String _userId = FirebaseAuth.instance.currentUser!.uid;
   bool _isLoading = true;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   // Will stats
   int _totalWillGained = 0;
@@ -39,7 +42,27 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
   @override
   void initState() {
     super.initState();
+
+    // Setup animations
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {
@@ -59,6 +82,8 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
     setState(() {
       _isLoading = false;
     });
+
+    _animationController.forward();
   }
 
   void _calculateWillStats() {
@@ -124,17 +149,10 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
     // Watch habit state for changes
     final habitState = ref.watch(habitStateProvider);
 
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: WillHistoryPage.backgroundColor,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       backgroundColor: WillHistoryPage.backgroundColor,
       appBar: AppBar(
-        backgroundColor: WillHistoryPage.backgroundColor,
+        backgroundColor: const Color(0xFF2D2D2D),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: WillHistoryPage.textColor),
@@ -145,24 +163,54 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
           style: TextStyle(color: WillHistoryPage.textColor, fontWeight: FontWeight.w600),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CalendarWidget(
-              initialDate: _selectedDate,
-              onDateSelected: _onDateSelected,
+      body: _isLoading
+          ? const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+        ),
+      )
+          : RefreshIndicator(
+        onRefresh: _loadInitialData,
+        color: Colors.blue.shade700,
+        backgroundColor: Colors.grey.shade900,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: WillHistoryPage.cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: CalendarWidget(
+                    initialDate: _selectedDate,
+                    onDateSelected: _onDateSelected,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                _buildWillSummaryCards(),
+                const SizedBox(height: 32),
+                _buildWillGainedGraph(),
+                const SizedBox(height: 32),
+                _buildWillBreakdown(),
+                const SizedBox(height: 32),
+                _buildWeeklyTotalWill(),
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 32),
-            _buildWillSummaryCards(),
-            const SizedBox(height: 32),
-            _buildWillGainedGraph(),
-            const SizedBox(height: 32),
-            _buildWillBreakdown(),
-            const SizedBox(height: 32),
-            _buildWeeklyTotalWill(),
-          ],
+          ),
         ),
       ),
     );
@@ -187,7 +235,7 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
         Expanded(
           child: _buildGlassCard(
             'Total Will Lost',
-            '-$_totalWillLost',
+            '$_totalWillLost',
             Icons.trending_down,
             gradient: const LinearGradient(
               colors: [Color(0xFFFF5252), Color(0xFFFF8A80)],
@@ -228,15 +276,17 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
                 Icon(icon, color: Colors.white, size: 28),
               ],
             ),
@@ -247,16 +297,116 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
   }
 
   Widget _buildWillGainedGraph() {
-    final habitState = ref.read(habitStateProvider);
     final weeklyStats = _calculateDailyWillForCurrentWeek();
 
-    return LineScatterWeeklyStats(
-      title: 'Will Points per Day',
-      stats: weeklyStats,
-      height: 200,
-      backgroundColor: WillHistoryPage.cardColor,
-      textColor: WillHistoryPage.textColor,
-    );
+    // Fix for the error: ensure all values have at least one non-zero value
+    // and set a default horizontal interval
+    bool allZero = weeklyStats.dailyStats.every((stat) => stat.value == 0);
+
+    if (allZero) {
+      // If all values are zero, we'll show a placeholder message instead
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: WillHistoryPage.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Will Points per Day',
+              style: TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.bar_chart,
+                    size: 60,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No data available for this week',
+                    style: TextStyle(
+                      color: WillHistoryPage.secondaryTextColor,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Complete some habits to see your progress',
+                    style: TextStyle(
+                      color: WillHistoryPage.secondaryTextColor,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      );
+    }
+
+    // If we have non-zero values, display the chart
+    try {
+      return LineScatterWeeklyStats(
+        title: 'Will Points per Day',
+        stats: weeklyStats,
+        height: 200,
+        backgroundColor: WillHistoryPage.cardColor,
+        textColor: WillHistoryPage.textColor,
+      );
+    } catch (e) {
+      // Fallback widget in case the chart still throws an error
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: WillHistoryPage.cardColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Will Points per Day',
+              style: TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 20),
+            Center(
+              child: Text(
+                'Chart could not be displayed',
+                style: TextStyle(color: WillHistoryPage.secondaryTextColor),
+              ),
+            ),
+            SizedBox(height: 80),
+          ],
+        ),
+      );
+    }
   }
 
   WeeklyStatsValue _calculateDailyWillForCurrentWeek() {
@@ -270,21 +420,33 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
     final dailyStats = <DayStats>[];
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+    // Add a small non-zero value to ensure at least one data point
+    // This prevents the FlGridData.horizontalInterval = 0 error
+    double minValue = 0.01;
+    double maxValue = minValue;
+
     for (int i = 0; i < 7; i++) {
       final date = startOfWeek.add(Duration(days: i));
       final dayLog = habitState.getDayLog(date);
 
-      int willTotal = 0;
+      double willTotal = 0;
       if (dayLog != null) {
         // Sum up will points for this day
         dayLog.habits.forEach((_, habitData) {
-          willTotal += habitData.willObtained;
+          willTotal += habitData.willObtained.toDouble();
         });
+      }
+
+      // Ensure value is never exactly 0 to prevent the chart error
+      if (willTotal == 0) {
+        willTotal = minValue;
+      } else if (willTotal > maxValue) {
+        maxValue = willTotal;
       }
 
       dailyStats.add(DayStats(
         day: dayNames[i],
-        value: willTotal.toDouble(),
+        value: willTotal,
       ));
     }
 
@@ -319,75 +481,113 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Will Breakdown',
-            style: TextStyle(
-              color: WillHistoryPage.textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          const Row(
+            children: [
+              Icon(
+                Icons.pie_chart,
+                color: Colors.blue,
+                size: 22,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Will Breakdown',
+                style: TextStyle(
+                  color: WillHistoryPage.textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
-          ...topHabits.map((entry) {
-            final habit = habits.firstWhere(
-                  (h) => h.id == entry.key,
-              orElse: () => habits.first,
-            );
+          if (topHabits.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 40,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No will data available yet',
+                      style: TextStyle(
+                        color: WillHistoryPage.secondaryTextColor,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...topHabits.map((entry) {
+              final habit = habits.firstWhere(
+                    (h) => h.id == entry.key,
+                orElse: () => habits.first,
+              );
 
-            final willValue = entry.value;
-            final isPositive = willValue >= 0;
-            final color = isPositive ?
-            WillHistoryPage.positiveColor :
-            WillHistoryPage.negativeColor;
+              final willValue = entry.value;
+              final isPositive = willValue >= 0;
+              final color = isPositive ?
+              WillHistoryPage.positiveColor :
+              WillHistoryPage.negativeColor;
 
-            return Column(
-              children: [
-                _buildWillSourceItem(
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildWillSourceItem(
                   habit.name,
                   (isPositive ? '+' : '') + willValue.toString(),
                   color,
                 ),
-                const SizedBox(height: 12),
-              ],
-            );
-          }).toList(),
-
-          if (topHabits.isEmpty)
-            const Text(
-              'No will data available for the selected period',
-              style: TextStyle(
-                color: WillHistoryPage.secondaryTextColor,
-                fontSize: 14,
-              ),
-            ),
+              );
+            }),
         ],
       ),
     );
   }
 
   Widget _buildWillSourceItem(String title, String value, Color valueColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: WillHistoryPage.secondaryTextColor,
-              fontSize: 14,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 14,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: valueColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -396,49 +596,181 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
     final netWill = _totalWillGained - _totalWillLost;
     final selectedDateFormatted = DateFormat('MMMM yyyy').format(_selectedDate);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: WillHistoryPage.cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Will Performance - $selectedDateFormatted',
-            style: const TextStyle(
-              color: WillHistoryPage.textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+    // Fix for the error: ensure all values have at least one non-zero value
+    bool allZero = weeklyWillStats.dailyStats.every((stat) => stat.value == 0);
+
+    if (allZero) {
+      // If all values are zero, show a placeholder instead
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: WillHistoryPage.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Net Will: ${netWill >= 0 ? "+$netWill" : netWill}',
-            style: TextStyle(
-              color: netWill >= 0 ?
-              WillHistoryPage.positiveColor :
-              WillHistoryPage.negativeColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Will Performance - $selectedDateFormatted',
+              style: const TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 200,
-            child: WeeklyStatsWidget(
-              title: '',
-              stats: weeklyWillStats,
+            const SizedBox(height: 8),
+            Text(
+              'Net Will: ${netWill >= 0 ? "+$netWill" : netWill}',
+              style: TextStyle(
+                color: netWill >= 0 ?
+                WillHistoryPage.positiveColor :
+                WillHistoryPage.negativeColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.insert_chart_outlined,
+                    size: 60,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No weekly data available yet',
+                    style: TextStyle(
+                      color: WillHistoryPage.secondaryTextColor,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      );
+    }
+
+    try {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: WillHistoryPage.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Will Performance - $selectedDateFormatted',
+              style: const TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Net Will: ${netWill >= 0 ? "+$netWill" : netWill}',
+              style: TextStyle(
+                color: netWill >= 0 ?
+                WillHistoryPage.positiveColor :
+                WillHistoryPage.negativeColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
               height: 200,
-              backgroundColor: WillHistoryPage.cardColor,
-              textColor: WillHistoryPage.textColor,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: LineChart(
+                  LineChartData(
+                    minY: 0,
+                    maxY: _getMaxWillPoints() * 1.2,
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: true,
+                      horizontalInterval: _getMaxWillPoints() > 10 ? _getMaxWillPoints() / 5 : 2,
+                    ),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                    ),
+                    titlesData: const FlTitlesData(show: true),
+                    lineBarsData: _getLineBarsData(),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    } catch (e) {
+      // Fallback widget if there's still an error
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: WillHistoryPage.cardColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Will Performance - $selectedDateFormatted',
+              style: const TextStyle(
+                color: WillHistoryPage.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Net Will: ${netWill >= 0 ? "+$netWill" : netWill}',
+              style: TextStyle(
+                color: netWill >= 0 ?
+                WillHistoryPage.positiveColor :
+                WillHistoryPage.negativeColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Center(
+              child: Text(
+                'Chart could not be displayed',
+                style: TextStyle(color: WillHistoryPage.secondaryTextColor),
+              ),
+            ),
+            const SizedBox(height: 80),
+          ],
+        ),
+      );
+    }
   }
 
   WeeklyStatsValue _calculateWeeklyTotalWill() {
@@ -461,10 +793,14 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
     final dailyStats = <DayStats>[];
     final weekNames = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
 
+    // Add a small non-zero value to ensure at least one data point
+    double minValue = 0.01;
+    double maxValue = minValue;
+
     // For each week, calculate the total will
     for (int i = 0; i < weekStarts.length; i++) {
       final weekStart = weekStarts[i];
-      int weekTotal = 0;
+      double weekTotal = 0;
 
       // Sum will for each day in the week
       for (int day = 0; day < 7; day++) {
@@ -478,12 +814,56 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage> {
         }
       }
 
+      // Ensure value is never exactly 0 to prevent chart error
+      if (weekTotal == 0) {
+        weekTotal = minValue;
+      } else if (weekTotal > maxValue) {
+        maxValue = weekTotal;
+      }
+
       dailyStats.add(DayStats(
         day: weekNames[i],
-        value: weekTotal.toDouble(),
+        value: weekTotal,
       ));
     }
 
     return WeeklyStatsValue(dailyStats: dailyStats);
+  }
+
+  double _getMaxWillPoints() {
+    final weeklyWillStats = _calculateWeeklyTotalWill();
+    double maxPoints = 10; // Default minimum
+    
+    for (var stat in weeklyWillStats.dailyStats) {
+      if (stat.value > maxPoints) {
+        maxPoints = stat.value;
+      }
+    }
+    
+    return maxPoints;
+  }
+
+  List<LineChartBarData> _getLineBarsData() {
+    final weeklyWillStats = _calculateWeeklyTotalWill();
+    final spots = <FlSpot>[];
+    
+    for (int i = 0; i < weeklyWillStats.dailyStats.length; i++) {
+      spots.add(FlSpot(i.toDouble(), weeklyWillStats.dailyStats[i].value));
+    }
+    
+    return [
+      LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        color: Colors.blue,
+        barWidth: 3,
+        isStrokeCapRound: true,
+        dotData: const FlDotData(show: true),
+        belowBarData: BarAreaData(
+          show: true,
+          color: Colors.blue.withOpacity(0.2),
+        ),
+      ),
+    ];
   }
 }

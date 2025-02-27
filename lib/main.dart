@@ -30,25 +30,29 @@ void main() async {
   //     print(e.toMap());
   //   });
   // }
-  runApp(ProviderScope(child: MyApp()));
+  runApp(
+    ProviderScope(child: MyApp()),
+  );
 }
 
 
 
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      localizationsDelegates: [
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: [
-        const Locale('en'), // English
-        const Locale('es'), // Spanish
-        const Locale('ar'), // Arabic
+      supportedLocales: const [
+        Locale('en'), // English
+        Locale('es'), // Spanish
+        Locale('ar'), // Arabic
         // Add other locales as needed
       ],
       theme: ThemeData(
@@ -59,6 +63,8 @@ class MyApp extends StatelessWidget {
   }
 }
 class AuthWrapper extends ConsumerStatefulWidget {
+  const AuthWrapper({super.key});
+
   @override
   _AuthWrapperState createState() => _AuthWrapperState();
 }
@@ -112,21 +118,21 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_isSigningOut) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         print("USer aUth Event!");
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: Text("Loading..."));
+          return const Center(child: Text("Loading..."));
         } else if (snapshot.hasData) {
           User? user = snapshot.data;
           return FutureBuilder<DocumentSnapshot>(
             future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
             builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> freeUserSnapshot) {
               if (freeUserSnapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: Center(child: Text("hello"),));
+                return const Center(child: Center(child: Text("hello"),));
               }
 
               if (freeUserSnapshot.hasError) {

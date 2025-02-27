@@ -1,4 +1,6 @@
+
 import 'package:flutter/material.dart';
+
 import '../../../models/habits.dart';
 
 class HabitNatureSelector extends StatelessWidget {
@@ -10,14 +12,14 @@ class HabitNatureSelector extends StatelessWidget {
   final Color textColor;
 
   const HabitNatureSelector({
-    Key? key,
+    super.key,
     required this.selectedNature,
     required this.onChanged,
     this.positiveColor = const Color(0xFF4CAF50),  // Default green
     this.negativeColor = const Color(0xFFE53935),  // Default red
     this.backgroundColor = const Color(0xFF2A2A2A), // Default dark background
     this.textColor = Colors.white,                 // Default text color
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -11,14 +11,14 @@ class RadarWeeklyStatsWidget extends StatelessWidget {
   final Color backgroundColor;
 
   const RadarWeeklyStatsWidget({
-    Key? key,
+    super.key,
     required this.title,
     required this.stats,
     this.height = 200,
     this.baseColor = const Color(0xFF7166F9),
     this.textColor = const Color(0xFFF5F5F5),
     this.backgroundColor = const Color(0xFF2D2D2D),
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

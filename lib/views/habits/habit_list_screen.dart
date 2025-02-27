@@ -1,5 +1,6 @@
 import 'package:farmwill_habits/views/habits/widgets/calendar_widget.dart';
 import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
+import 'package:farmwill_habits/views/habits/widgets/habit_card_v2.dart';
 import 'package:farmwill_habits/views/habits/widgets/personal_drawer.dart';
 import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
@@ -12,9 +13,20 @@ import '../../models/habit_data.dart';
 import '../../models/habits.dart';
 import '../../repositories/habits_repository.dart';
 import 'create_habit_page.dart';
+import 'create_habit_page_v2.dart';
 import 'habit_state.dart';
+import 'habit_details_page.dart';
+
+// Define sort options
+enum HabitSortOption {
+  name,
+  willPerRep,
+  willGained,
+}
 
 class HabitListScreen extends ConsumerStatefulWidget {
+  const HabitListScreen({super.key});
+
   @override
   ConsumerState<HabitListScreen> createState() => _HabitListScreenState();
 }
@@ -25,10 +37,19 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
   final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isLoading = true;
+  HabitSortOption _currentSortOption = HabitSortOption.name;
+  bool _sortAscending = true;
 
   @override
   void initState() {
     super.initState();
+    _loadHabitsAndData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh data when dependencies change (like returning from another screen)
     _loadHabitsAndData();
   }
 
@@ -72,34 +93,159 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     userHabitState.updateSelectedDate(date);
   }
 
+  // Sort habits based on current sort option
+  List<UserHabit> _getSortedHabits(List<UserHabit> habits, Map<String, HabitData> habitsData) {
+    final sortedHabits = List<UserHabit>.from(habits);
+    
+    switch (_currentSortOption) {
+      case HabitSortOption.name:
+        sortedHabits.sort((a, b) => _sortAscending 
+            ? a.name.compareTo(b.name) 
+            : b.name.compareTo(a.name));
+        break;
+        
+      case HabitSortOption.willPerRep:
+        sortedHabits.sort((a, b) {
+          final aWillPerRep = a.willPerRep ?? 0;
+          final bWillPerRep = b.willPerRep ?? 0;
+          return _sortAscending 
+              ? aWillPerRep.compareTo(bWillPerRep) 
+              : bWillPerRep.compareTo(aWillPerRep);
+        });
+        break;
+        
+      case HabitSortOption.willGained:
+        sortedHabits.sort((a, b) {
+          final aWillGained = habitsData[a.id]?.willObtained ?? 0;
+          final bWillGained = habitsData[b.id]?.willObtained ?? 0;
+          return _sortAscending 
+              ? aWillGained.compareTo(bWillGained) 
+              : bWillGained.compareTo(aWillGained);
+        });
+        break;
+    }
+    
+    return sortedHabits;
+  }
+
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2D2D2D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Text(
+                  'Sort Habits By',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              _buildSortOption(
+                title: 'Name',
+                icon: Icons.sort_by_alpha,
+                sortOption: HabitSortOption.name,
+              ),
+              _buildSortOption(
+                title: 'Will Per Rep',
+                icon: Icons.bolt,
+                sortOption: HabitSortOption.willPerRep,
+              ),
+              _buildSortOption(
+                title: 'Will Gained',
+                icon: Icons.trending_up,
+                sortOption: HabitSortOption.willGained,
+              ),
+              const Divider(color: Colors.grey),
+              ListTile(
+                leading: Icon(
+                  _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                  color: Colors.blue,
+                ),
+                title: Text(
+                  _sortAscending ? 'Ascending' : 'Descending',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  setState(() {
+                    _sortAscending = !_sortAscending;
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSortOption({
+    required String title,
+    required IconData icon,
+    required HabitSortOption sortOption,
+  }) {
+    final isSelected = _currentSortOption == sortOption;
+    
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? Colors.blue : Colors.grey,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Colors.blue)
+          : null,
+      onTap: () {
+        setState(() {
+          _currentSortOption = sortOption;
+        });
+        Navigator.pop(context);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Watch the user habit state for changes
+    // Get the ref from the ConsumerState
     final userHabitState = ref.watch(habitStateProvider);
+    final habits = userHabitState.habits;
+    final habitsData = userHabitState.habitsData;
     final willPoints = userHabitState.willPoints;
     final hasError = userHabitState.error != null;
 
+    // Apply sorting
+    final sortedHabits = _getSortedHabits(habits, habitsData);
+
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A1A),
-      drawer: _buildDrawer(),
       appBar: AppBar(
         backgroundColor: const Color(0xFF2D2D2D),
         title: const Text('My Habits', style: TextStyle(color: Colors.white)),
-        leading: Builder(
-          builder: (BuildContext context) {
-            return IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            );
-          },
-        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: GestureDetector(
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => WillHistoryPage()),
+                  MaterialPageRoute(builder: (context) => const WillHistoryPage()),
                 );
               },
               child: WillWidget(willPoints: willPoints),
@@ -123,7 +269,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
                     icon: const Icon(Icons.add, color: Colors.white, size: 20),
                     onPressed: () async {
                       await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => EditHabitPage()),
+                        MaterialPageRoute(builder: (context) => const EditHabitPageV2()),
                       );
                       // Reload habits after returning from create page
                       _loadHabitsAndData();
@@ -154,9 +300,66 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
                   : null,
             ),
 
+            // Sort button and indicator
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Sort button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showSortOptions,
+                      borderRadius: BorderRadius.circular(50),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade700,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              spreadRadius: 1,
+                              blurRadius: 3,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getSortIcon(),
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _getSortName(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Habits List Section
             Expanded(
-              child: _buildHabitsList(userHabitState),
+              child: _buildHabitsList(userHabitState, sortedHabits),
             ),
           ],
         ),
@@ -164,7 +367,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     );
   }
 
-  Widget _buildHabitsList(UserHabitState userHabitState) {
+  Widget _buildHabitsList(UserHabitState userHabitState, List<UserHabit> sortedHabits) {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -206,7 +409,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
             ElevatedButton(
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => EditHabitPage()),
+                  MaterialPageRoute(builder: (context) => const EditHabitPageV2()),
                 );
                 _loadHabitsAndData();
               },
@@ -217,130 +420,71 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(10),
-      itemCount: userHabitState.habits.length,
+    return GridView.builder(
+      padding: const EdgeInsets.all(16.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: sortedHabits.length,
       itemBuilder: (context, index) {
-        final habit = userHabitState.habits[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10, top: 10),
-          child: HabitCard(
-            userHabit: habit,
-          ),
+        final habit = sortedHabits[index];
+        return HabitCard(
+          userHabit: habit,
+
         );
       },
     );
   }
 
-  Widget _buildDrawer() {
-    return Drawer(
-      backgroundColor: const Color(0xFF2D2D2D), // Dark background
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              color: Colors.blue.shade700, // A slightly lighter shade for the header
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.blue.shade700, Colors.blue.shade900],
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  spreadRadius: 2,
-                  blurRadius: 5,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end, // Align to the bottom
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  // Add your profile image here
-                  // backgroundImage: AssetImage('assets/profile_image.png'),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Your Name',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'your.email@example.com',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Drawer items with icons and rounded corners
-          _buildDrawerItem(Icons.settings, 'Settings', () {
-            // Navigate to settings
-          }),
-          _buildDrawerItem(Icons.info_outline, 'About', () {
-            // Show about dialog or page
-          }),
-          _buildDrawerItem(Icons.logout, 'Logout', () {
-            // Handle logout
-          }),
-        ],
-      ),
-    );
+  // Helper method to get the appropriate icon for the current sort option
+  IconData _getSortIcon() {
+    switch (_currentSortOption) {
+      case HabitSortOption.name:
+        return Icons.sort_by_alpha;
+      case HabitSortOption.willPerRep:
+        return Icons.bolt;
+      case HabitSortOption.willGained:
+        return Icons.trending_up;
+      default:
+        return Icons.sort;
+    }
   }
 
-  // Helper method to create drawer items with rounded corners
-  Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      child: Material(
-        color: Colors.transparent, // Transparent background for InkWell
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(15), // Rounded corners for InkWell
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade800, // Slightly lighter background for items
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 3,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(icon, color: Colors.white70),
-                const SizedBox(width: 20),
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        ),
+  // Helper method to get the name of the current sort option
+  String _getSortName() {
+    switch (_currentSortOption) {
+      case HabitSortOption.name:
+        return 'Name';
+      case HabitSortOption.willPerRep:
+        return 'Will Per Rep';
+      case HabitSortOption.willGained:
+        return 'Will Gained';
+      default:
+        return 'Default';
+    }
+  }
+
+  void _navigateToHabitDetails(UserHabit habit) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HabitDetailsPage(userHabit: habit),
       ),
-    );
+    ).then((result) {
+      // If result is true, a habit was deleted or updated
+      if (result == true) {
+        print("Habit was deleted or updated, refreshing list");
+        // Refresh the habit list
+        final habitState = ref.read(habitStateProvider);
+        habitState.loadHabitsAndData(_userId);
+      }
+    });
+  }
+
+  void _showHabitOptions(UserHabit habit) {
+    // Implement the logic to show the habit options
   }
 }

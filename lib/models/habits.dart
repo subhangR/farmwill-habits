@@ -11,16 +11,6 @@ enum HabitNature {
   negative,
 }
 
-enum FrequencyType {
-  daily,
-  weekly,
-}
-
-enum GoalType {
-  duration,
-  repetitions,
-}
-
 // Class to handle weekly frequency
 class WeeklySchedule {
   final bool monday;
@@ -68,47 +58,16 @@ class WeeklySchedule {
   }
 }
 
-// Class to handle habit goals
-class HabitGoal {
-  final GoalType type;
-  final int target; // minutes for duration, count for repetitions
-  final double progress; // current progress towards goal
-
-  const HabitGoal({
-    required this.type,
-    required this.target,
-    this.progress = 0,
-  });
-
-  // Convert to Map for storing in NoSQL
-  Map<String, dynamic> toMap() {
-    return {
-      'type': type.toString(),
-      'target': target,
-      'progress': progress,
-    };
-  }
-
-  // Create from Map when fetching from NoSQL
-  factory HabitGoal.fromMap(Map<String, dynamic> map) {
-    return HabitGoal(
-      type: GoalType.values.firstWhere(
-            (e) => e.toString() == map['type'],
-        orElse: () => GoalType.repetitions,
-      ),
-      target: map['target'] ?? 0,
-      progress: map['progress']?.toDouble() ?? 0,
-    );
-  }
-}
-
 // Class to handle habit logging
 enum LogEventType {
   click,  // Simple completion event
   timeTracked, // Event with duration
 }
 
-
+enum FrequencyType {
+  onetime,
+  daily
+}
 //table
 // Main UserHabit class
 class UserHabit {
@@ -117,18 +76,19 @@ class UserHabit {
   final String name;
   final HabitType habitType;
   final HabitNature nature;
-  final int? willPerRep;
-  final int? willPerMin;
-  final WeeklySchedule? weeklySchedule;
+  final WeeklySchedule weeklySchedule;
   final DateTime createdAt;
   final DateTime? completedAt;
-  final GoalType goalType;
   final bool isArchived;
-  final IconData habitIcon;  // New field for habit icon
+  final FrequencyType frequencyType;
+  final String targetUnits;
   int targetReps;
-  int? targetMinutes = 0;
-  int? maxScore = 0;
+  int targetRepStep;
+  final int? willPerRep;
+  int? maxWill = 0;
   int? startingWill = 0;
+  final int repetitionStep;
+  final String repetitionUnitType;
 
   UserHabit({
     required this.uid,
@@ -136,18 +96,19 @@ class UserHabit {
     required this.name,
     required this.habitType,
     required this.nature,
-    this.weeklySchedule,
-    required this.createdAt,
-    required this.goalType,
-    this.completedAt,
-    this.willPerMin,
+    required this.weeklySchedule,
+    required this.targetReps,
     this.willPerRep,
-    this.targetReps = 1,
-    this.targetMinutes,
-    this.maxScore,
+    this.maxWill,
     this.startingWill,
-    this.isArchived = false,
-    this.habitIcon = Icons.check_circle,  // Default icon
+    required this.createdAt,
+    required this.isArchived,
+    required this.frequencyType,
+    this.repetitionStep = 1,
+    this.repetitionUnitType = 'reps',
+    this.completedAt,
+    this.targetUnits = 'reps',
+    this.targetRepStep = 1,
   });
 
   Map<String, dynamic> toMap() {
@@ -168,22 +129,17 @@ class UserHabit {
       'name': name,
       'habitType': habitType.name,
       'nature': nature.name,
-      'goalType': goalType.name, // Fixed missing goalType in toMap
-      'weeklySchedule': weeklySchedule?.toMap(),
+      'weeklySchedule': weeklySchedule.toMap(),
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'isArchived': isArchived,
       'scorePerRep': willPerRep,
-      'scorePerMinute': willPerMin,
       'targetReps': targetReps,
-      'targetMinutes': targetMinutes,
-      'maxScore': maxScore,
+      'maxScore': maxWill,
       'startingWill': startingWill,
-      'habitIcon': {
-        'codePoint': habitIcon.codePoint,
-        'fontFamily': habitIcon.fontFamily,
-        'fontPackage': habitIcon.fontPackage,
-      },
+      'frequencyType': frequencyType.name,
+      'repetitionStep': repetitionStep,
+      'repetitionUnitType': repetitionUnitType,
     };
   }
 
@@ -237,15 +193,16 @@ class UserHabit {
       uid: map['uid'] ?? '',
       id: map['id'] ?? '',
       name: map['name'] ?? '',
-      goalType: map['goalType'] != null
-          ? GoalType.values.firstWhere(
-              (e) => e.name == map['goalType'],
+      frequencyType: map['frequencyType'] != null
+          ? FrequencyType.values.firstWhere(
+              (e) => e.name == map['frequencyType'],
           orElse: () {
-            debugPrint('WARNING: Unknown goalType "${map['goalType']}", defaulting to repetitions');
-            return GoalType.repetitions;
+            debugPrint('WARNING: Unknown frequencyType "${map['frequencyType']}", defaulting to onetime');
+            return FrequencyType.onetime;
           }
       )
-          : GoalType.repetitions,
+          : FrequencyType.onetime,
+
       habitType: map['habitType'] != null
           ? HabitType.values.firstWhere(
               (e) => e.name == map['habitType'],
@@ -264,25 +221,18 @@ class UserHabit {
           }
       )
           : HabitNature.positive,
-      weeklySchedule: map['weeklySchedule'] != null
-          ? WeeklySchedule.fromMap(map['weeklySchedule'])
-          : null,
+      weeklySchedule: WeeklySchedule.fromMap(map['weeklySchedule']),
       createdAt: parsedCreatedAt,
       completedAt: parsedCompletedAt,
       isArchived: map['isArchived'] ?? false,
       willPerRep: map['scorePerRep'],
-      willPerMin: map['scorePerMinute'],
       targetReps: map['targetReps'] ?? 1,
-      targetMinutes: map['targetMinutes'] ?? 0,
-      maxScore: map['maxScore'],
+      targetUnits: map['targetUnits'] ?? 'reps',
+      targetRepStep: map['targetRepStep'] ?? 1,
+      maxWill: map['maxScore'],
       startingWill: map['startingWill'],
-      habitIcon: map['habitIcon'] != null
-          ? IconData(
-        map['habitIcon']['codePoint'] as int? ?? Icons.check_circle.codePoint,
-        fontFamily: map['habitIcon']['fontFamily'] as String? ?? 'MaterialIcons',
-        fontPackage: map['habitIcon']['fontPackage'] as String?,
-      )
-          : Icons.check_circle,
+      repetitionStep: map['repetitionStep'] ?? 1,
+      repetitionUnitType: map['repetitionUnitType'] ?? 'reps',
     );
   }
 }

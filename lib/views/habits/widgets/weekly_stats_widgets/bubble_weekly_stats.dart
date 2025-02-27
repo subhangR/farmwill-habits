@@ -11,14 +11,14 @@ class BubbleWeeklyStatsWidget extends StatefulWidget {
   final Color backgroundColor;
 
   const BubbleWeeklyStatsWidget({
-    Key? key,
+    super.key,
     required this.title,
     required this.stats,
     this.height = 200,
     this.baseColor = const Color(0xFF7166F9),
     this.textColor = const Color(0xFFF5F5F5),
     this.backgroundColor = const Color(0xFF2D2D2D),
-  }) : super(key: key);
+  });
 
   @override
   State<BubbleWeeklyStatsWidget> createState() => _BubbleWeeklyStatsWidgetState();
@@ -69,8 +69,8 @@ class _BubbleWeeklyStatsWidgetState extends State<BubbleWeeklyStatsWidget> {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,

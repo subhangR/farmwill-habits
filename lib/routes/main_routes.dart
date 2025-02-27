@@ -1,4 +1,5 @@
-import 'package:farmwill_habits/views/unused/today_page.dart';
+import 'package:farmwill_habits/views/goals/goals_list_screen.dart';
+import 'package:farmwill_habits/views/settings/settings_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../views/habits/habit_list_screen.dart';
@@ -9,17 +10,17 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final mainRouterV2 = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/today',
+  initialLocation: '/habits',
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
-        return navigationShell;
+        return ScaffoldWithNavbarV2(navigationShell);
       },
       branches: [
         StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/today',
+                path: '/habits',
                 builder: (context, state) => HabitListScreen(),
               ),
             ]),
@@ -33,8 +34,15 @@ final mainRouterV2 = GoRouter(
         StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/history',
-                builder: (context, state) => HistoryPage(),
+                path: '/goals',
+                builder: (context, state) => const GoalsListPage(),
+              ),
+            ]),
+        StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/settings',
+                builder: (context, state) => const SettingsScreen(),
               ),
             ]),
       ],
@@ -72,16 +80,16 @@ class MagicalNavigationBar extends StatelessWidget {
   final Function(int) onTap;
 
   const MagicalNavigationBar({
-    Key? key,
+    super.key,
     required this.currentIndex,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 70,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.black87,
       ),
       child: Stack(
@@ -89,20 +97,20 @@ class MagicalNavigationBar extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(Icons.room, 'Today', 0),
-              // _buildNavItem(Icons.search, 'solve', 1),
-              _buildNavItem(Icons.library_books, 'Insights', 1),
+              _buildNavItem(Icons.repeat, 'Habits', 0),
+              _buildNavItem(Icons.flag, 'Goals', 1),
+              _buildNavItem(Icons.settings, 'Settings', 2),
             ],
           ),
           AnimatedPositioned(
-            duration: Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            left: MediaQuery.of(context).size.width / 2 * currentIndex,
+            left: MediaQuery.of(context).size.width / 3 * currentIndex,
             bottom: 0,
             child: Container(
-              width: MediaQuery.of(context).size.width / 2,
+              width: MediaQuery.of(context).size.width / 3,
               height: 4,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.blue,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
               ),
@@ -118,7 +126,7 @@ class MagicalNavigationBar extends StatelessWidget {
     return GestureDetector(
       onTap: () => onTap(index),
       child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 200),
         width: 60,
         height: 60,
         decoration: BoxDecoration(
@@ -133,7 +141,7 @@ class MagicalNavigationBar extends StatelessWidget {
               color: isSelected ? Colors.blue : Colors.white60,
               size: 28,
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(

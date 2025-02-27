@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 
 class PersonalDrawer extends StatelessWidget {
-  const PersonalDrawer({Key? key}) : super(key: key);
+  const PersonalDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -14,8 +14,8 @@ class PersonalDrawer extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(
-                color: const Color(0xFF2D2D2D),  // Matching your AppBar color
+              decoration: const BoxDecoration(
+                color: Color(0xFF2D2D2D),  // Matching your AppBar color
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

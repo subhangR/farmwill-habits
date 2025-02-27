@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class SignupPage extends StatefulWidget {
+  const SignupPage({super.key});
+
   @override
   _SignupPageState createState() => _SignupPageState();
 }
@@ -62,12 +64,12 @@ class _SignupPageState extends State<SignupPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Error'),
+        title: const Text('Error'),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Okay'),
+            child: const Text('Okay'),
           ),
         ],
       ),
@@ -78,15 +80,15 @@ class _SignupPageState extends State<SignupPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Success'),
-        content: Text('User created successfully!'),
+        title: const Text('Success'),
+        content: const Text('User created successfully!'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop(); // Return to the previous screen
             },
-            child: Text('Okay'),
+            child: const Text('Okay'),
           ),
         ],
       ),
@@ -98,7 +100,7 @@ class _SignupPageState extends State<SignupPage> {
     return Scaffold(
       body: SafeArea(
         child: _isLoading
-            ? Center(child: CircularProgressIndicator())
+            ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -107,17 +109,17 @@ class _SignupPageState extends State<SignupPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 50),
+                  const SizedBox(height: 50),
                   Text(
                     'Create Account',
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 50),
+                  const SizedBox(height: 50),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Email',
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: const Icon(Icons.email),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -133,11 +135,11 @@ class _SignupPageState extends State<SignupPage> {
                       _email = value!.trim();
                     },
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
                         onPressed: () {
@@ -161,21 +163,21 @@ class _SignupPageState extends State<SignupPage> {
                       _password = value!;
                     },
                   ),
-                  SizedBox(height: 30),
+                  const SizedBox(height: 30),
                   ElevatedButton(
                     onPressed: _signup,
-                    child: Text('Sign Up'),
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 15),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    child: Text('Sign Up'),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text('Already have an account? Sign in'),
+                    child: const Text('Already have an account? Sign in'),
                   ),
                 ],
               ),

@@ -29,14 +29,14 @@ class WeeklyStatsWidget extends StatelessWidget {
   final Color backgroundColor;
 
   const WeeklyStatsWidget({
-    Key? key,
+    super.key,
     required this.title,
     required this.stats,
     this.height = 200,
     this.barColor = const Color(0xFF7166F9),
     this.textColor = const Color(0xFFF5F5F5),
     this.backgroundColor = const Color(0xFF2D2D2D),
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -126,15 +126,15 @@ class WeeklyStatsWidget extends StatelessWidget {
                       },
                     ),
                   ),
-                  leftTitles: AxisTitles(
+                  leftTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
                 ),
                 borderData: FlBorderData(show: false),
-                gridData: FlGridData(show: false),
+                gridData: const FlGridData(show: false),
                 barGroups: stats.dailyStats.asMap().entries.map((entry) {
                   return BarChartGroupData(
                     x: entry.key,

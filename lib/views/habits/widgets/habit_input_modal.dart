@@ -6,24 +6,20 @@ import '../../../models/habits.dart';
 class HabitUpdateModal extends StatefulWidget {
   UserHabit userHabit;
   final int currentReps;
-  final int currentDuration;
   final Function(int reps, int duration, bool completed) onUpdate;
 
   HabitUpdateModal({
-    Key? key,
+    super.key,
     required this.userHabit,
     required this.currentReps,
-    required this.currentDuration,
     required this.onUpdate,
-  }) : super(key: key);
+  });
 
   static Future<void> show(
       BuildContext context, {
         required UserHabit userHabit,
         required int currentReps,
         required int targetReps,
-        required int currentDuration,
-        required int targetDuration,
         required Function(int reps, int duration, bool completed) onUpdate,
       }) {
     return showModalBottomSheet(
@@ -33,7 +29,6 @@ class HabitUpdateModal extends StatefulWidget {
       builder: (context) => HabitUpdateModal(
         userHabit: userHabit,
         currentReps: currentReps,
-        currentDuration: currentDuration,
         onUpdate: onUpdate,
       ),
     );
@@ -51,15 +46,13 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
   late Animation<double> _animation;
 
   bool get _isRepsCompleted => _reps >= widget.userHabit.targetReps;
-  bool get _isDurationCompleted => widget.userHabit.targetMinutes != 0 ?
-        _duration >= widget.userHabit.targetMinutes! : false;
+
   bool get _isHabitCompleted => _isRepsCompleted;
 
   @override
   void initState() {
     super.initState();
     _reps = widget.currentReps;
-    _duration = widget.currentDuration;
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -104,9 +97,6 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
     }
   }
 
-  void _handleCompleteDuration() {
-    setState(() => _duration = widget.userHabit.targetMinutes ?? 0);
-  }
 
   void _handleComplete() {
     widget.onUpdate(_reps, _duration, _isHabitCompleted);
@@ -141,7 +131,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
               ),
             ),
             Text(
-              '${current}/${target}${unit != null ? ' $unit' : ''}',
+              '$current/$target${unit != null ? ' $unit' : ''}',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -253,12 +243,12 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
                   children: [
                      Text(
                       widget.userHabit.name,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    WillWidget(willPoints: 10),
+                    const WillWidget(willPoints: 10),
                     IconButton(
                       onPressed: _openCalendar,
                       icon: Icon(
@@ -290,16 +280,7 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
                 const SizedBox(height: 24),
 
                 // Duration Control
-                _buildProgressSection(
-                  title: 'Duration',
-                  current: _duration,
-                  target: widget.userHabit.targetMinutes ?? 0,
-                  onAdd: _handleAddDuration,
-                  onSubtract: _handleSubtractDuration,
-                  onComplete: _handleCompleteDuration,
-                  isCompleted: _isDurationCompleted,
-                  unit: 'min',
-                ),
+
                 const SizedBox(height: 32),
 
                 // Save Button
@@ -314,14 +295,14 @@ class _HabitUpdateModalState extends State<HabitUpdateModal>
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
 
-                      const SizedBox(width: 8),
-                      const Text(
+                      SizedBox(width: 8),
+                      Text(
                         'Save',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                         ),

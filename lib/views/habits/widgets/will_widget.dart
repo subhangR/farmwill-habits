@@ -4,12 +4,13 @@ class WillWidget extends StatelessWidget {
   final int willPoints;
 
   const WillWidget({
-    Key? key,
+    super.key,
     required this.willPoints,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
+    String willText = willPoints > 0 ? '+$willPoints' : '$willPoints';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -34,7 +35,7 @@ class WillWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Red icon without gradient
-          Icon(
+          const Icon(
             Icons.flash_on,
             color: Colors.red,
             size: 20,
@@ -42,7 +43,7 @@ class WillWidget extends StatelessWidget {
           const SizedBox(width: 6),
           // Black text without gradient
           Text(
-            '+$willPoints',
+            willText,
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,

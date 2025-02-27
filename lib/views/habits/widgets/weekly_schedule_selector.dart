@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../models/habits.dart';
@@ -10,24 +11,32 @@ class WeeklyScheduleSelector extends StatelessWidget {
   final Color unselectedColor;
 
   const WeeklyScheduleSelector({
-    Key? key,
+    super.key,
     required this.schedule,
     required this.onChanged,
     this.backgroundColor = const Color(0xFF2A2A2A),
     this.selectedColor = Colors.white,
     this.unselectedColor = const Color(0xFF3D3D3D),
-  }) : super(key: key);
+  });
 
   void _updateDay(int dayIndex) {
-    Map<String, dynamic> currentSchedule = schedule.toMap();
-    List<String> dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    int dataIndex = (dayIndex + 6) % 7;
-    String selectedDay = dayKeys[dataIndex];
+    final List<String> dayKeys = [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday'
+    ];
 
-    Map<String, bool> newSchedule = Map.from(currentSchedule);
+    final Map<String, dynamic> currentSchedule = schedule.toMap();
+    final String selectedDay = dayKeys[dayIndex];
+
+    final Map<String, bool> newSchedule = Map<String, bool>.from(currentSchedule);
     newSchedule[selectedDay] = !currentSchedule[selectedDay]!;
 
-    WeeklySchedule updatedSchedule = WeeklySchedule.fromMap(newSchedule);
+    final updatedSchedule = WeeklySchedule.fromMap(newSchedule);
     onChanged(updatedSchedule);
   }
 
@@ -76,8 +85,6 @@ class WeeklyScheduleSelector extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    // When selected: black text on white background
-                    // When unselected: white text on dark background
                     color: isSelected ? Colors.black : Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,

@@ -11,14 +11,14 @@ class LineScatterWeeklyStats extends StatelessWidget {
   final Color backgroundColor;
 
   const LineScatterWeeklyStats({
-    Key? key,
+    super.key,
     required this.title,
     required this.stats,
     this.height = 200,
     this.baseColor = const Color(0xFF7166F9),
     this.textColor = const Color(0xFFF5F5F5),
     this.backgroundColor = const Color(0xFF2D2D2D),
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -75,10 +75,10 @@ class LineScatterWeeklyStats extends StatelessWidget {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  rightTitles: AxisTitles(
+                  rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  topTitles: AxisTitles(
+                  topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
                   leftTitles: AxisTitles(

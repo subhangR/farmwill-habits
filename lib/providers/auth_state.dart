@@ -19,7 +19,7 @@ class AuthState extends ChangeNotifier {
   }
 
   String? getUid() {
-    if (this.userCredential == null) {
+    if (userCredential == null) {
       return null;
     }
     return userCredential!.user!.uid;
@@ -27,12 +27,12 @@ class AuthState extends ChangeNotifier {
 
 
   void setCurrentUser(UserCredential userCred) async {
-    this.userCredential = userCred;
+    userCredential = userCred;
     notifyListeners();
   }
 
   void setFreeUser(FreeUser user) {
-    this.freeUser = user;
+    freeUser = user;
     notifyListeners();
   }
 

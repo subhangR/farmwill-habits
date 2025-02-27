@@ -1,0 +1,2 @@
+/Users/subhang/IdeaProjects/farmwill_habits/android/app/.cxx/Debug/6y134670/x86/CMakeFiles/edit_cache.dir
+/Users/subhang/IdeaProjects/farmwill_habits/android/app/.cxx/Debug/6y134670/x86/CMakeFiles/rebuild_cache.dir

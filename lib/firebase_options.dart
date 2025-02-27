@@ -63,6 +63,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '698238504542',
     projectId: 'farmwill-habits',
     storageBucket: 'farmwill-habits.firebasestorage.app',
-    iosBundleId: 'com.example.farmwillHabits',
+    iosBundleId: 'com.farmwill.habits',
   );
 }
