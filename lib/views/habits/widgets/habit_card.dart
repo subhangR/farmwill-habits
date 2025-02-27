@@ -91,7 +91,6 @@ class _HabitCardState extends ConsumerState<HabitCard>
 
     _lastLoadedDate = selectedDate;
 
-
     if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
       final habitData = dayLog.habits[widget.userHabit.id];
       if (habitData != null) {
@@ -140,7 +139,6 @@ class _HabitCardState extends ConsumerState<HabitCard>
   }
 
   void _handleTap() async {
-
     // Get the current reps for optimistic UI update
     int previousReps = _currentReps;
     final stepValue = widget.userHabit.repStep;
@@ -541,7 +539,9 @@ class _HabitCardState extends ConsumerState<HabitCard>
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
-                            '$progressPercent% complete',
+                            widget.userHabit.nature == HabitNature.positive
+                                ? '$progressPercent% complete'
+                                : '${100 - progressPercent}% remaining',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.white70,
@@ -609,7 +609,6 @@ class _HabitCardState extends ConsumerState<HabitCard>
   }
 
   void _handleDoubleTap() {
-
     Navigator.push(
       context,
       MaterialPageRoute(

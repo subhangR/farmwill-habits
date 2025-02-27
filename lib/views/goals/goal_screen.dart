@@ -1,6 +1,7 @@
 import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
 import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
+import 'package:farmwill_habits/views/habits/habit_details_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,8 @@ class GoalScreen extends ConsumerStatefulWidget {
   ConsumerState<GoalScreen> createState() => _GoalScreenState();
 }
 
-class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProviderStateMixin {
+class _GoalScreenState extends ConsumerState<GoalScreen>
+    with SingleTickerProviderStateMixin {
   final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isLoading = true;
@@ -69,10 +71,8 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
       await userHabitState.loadHabitsAndData(_userId);
 
       // Refresh goal data if needed
-      final goalFromState = userHabitState.goals.firstWhere(
-              (g) => g.id == _goal.id,
-          orElse: () => _goal
-      );
+      final goalFromState = userHabitState.goals
+          .firstWhere((g) => g.id == _goal.id, orElse: () => _goal);
 
       setState(() {
         _goal = goalFromState;
@@ -96,10 +96,8 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
     final hasError = userHabitState.error != null;
 
     // Check if goal was updated in state
-    final goalInState = userHabitState.goals.firstWhere(
-            (g) => g.id == _goal.id,
-        orElse: () => _goal
-    );
+    final goalInState = userHabitState.goals
+        .firstWhere((g) => g.id == _goal.id, orElse: () => _goal);
 
     if (goalInState != _goal) {
       _goal = goalInState;
@@ -134,10 +132,12 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
             child: GestureDetector(
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const WillHistoryPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const WillHistoryPage()),
                 );
               },
-              child: WillWidget(willPoints: _calculateGoalWill(userHabitState, _goal)),
+              child: WillWidget(
+                  willPoints: _calculateGoalWill(userHabitState, _goal)),
             ),
           ),
           IconButton(
@@ -154,24 +154,22 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadHabitsData,
-        color: Colors.blue.shade700,
-        backgroundColor: Colors.grey.shade900,
-        child: _buildGoalDetail(userHabitState),
-      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadHabitsData,
+              color: Colors.blue.shade700,
+              backgroundColor: Colors.grey.shade900,
+              child: _buildGoalContent(userHabitState),
+            ),
     );
   }
 
-  Widget _buildGoalDetail(UserHabitState userHabitState) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-        ),
-      );
-    }
-
+  Widget _buildGoalContent(UserHabitState userHabitState) {
     if (userHabitState.error != null) {
       return Center(
         child: Column(
@@ -196,7 +194,8 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -221,22 +220,27 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
       }
     }
 
-    return SingleChildScrollView(
+    return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Goal info card
-              _buildGoalInfoCard(_goal, goalHabits, totalWill),
+      slivers: [
+        // Goal info card
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: _buildGoalInfoCard(_goal, goalHabits, totalWill),
+            ),
+          ),
+        ),
 
-              const SizedBox(height: 20),
-
-              // Associated habits section
-              Container(
+        // Habits header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D2D2D),
                   borderRadius: BorderRadius.circular(16),
@@ -249,118 +253,147 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.list_alt,
-                            color: Colors.blue.shade400,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Associated Habits',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade700.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${goalHabits.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.list_alt,
+                        color: Colors.blue.shade400,
+                        size: 24,
                       ),
-                    ),
-
-                    Divider(
-                      color: Colors.grey.shade800,
-                      thickness: 1,
-                      height: 1,
-                    ),
-
-                    // Associated habits list
-                    if (goalHabits.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.playlist_add,
-                                size: 48,
-                                color: Colors.grey.shade600,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No habits associated with this goal yet',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 16,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Add habits to track your progress towards this goal',
-                                style: TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 14,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Associated Habits',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade700.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${goalHabits.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: goalHabits.length,
-                        separatorBuilder: (context, index) => Divider(
-                          color: Colors.grey.shade800,
-                          height: 1,
-                        ),
-                        itemBuilder: (context, index) {
-                          final habit = goalHabits[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                            child: HabitCard(
-                              userHabit: habit,
-                              selectedDate: DateTime.now(),
-                            ),
-                          );
-                        },
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
-      ),
+
+        // Empty state for no habits
+        if (goalHabits.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D2D2D),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.playlist_add,
+                          size: 48,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No habits associated with this goal yet',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Add habits to track your progress towards this goal',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddHabitDialog(_goal),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add Habits'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          // Grid layout for habit cards
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverFadeTransition(
+              opacity: _fadeAnimation,
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.75,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final habit = goalHabits[index];
+                    return HabitCard(
+                      userHabit: habit,
+                      selectedDate: DateTime.now(),
+                    );
+                  },
+                  childCount: goalHabits.length,
+                ),
+              ),
+            ),
+          ),
+
+        // Add bottom padding
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 24),
+        ),
+      ],
     );
   }
 
-  Widget _buildGoalInfoCard(UserGoal goal, List<UserHabit> goalHabits, int totalWill) {
+  Widget _buildGoalInfoCard(
+      UserGoal goal, List<UserHabit> goalHabits, int totalWill) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF2D2D2D),
@@ -692,17 +725,19 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
                           ),
                           itemBuilder: (context, index) {
                             final habit = allHabits[index];
-                            final isSelected = selectedHabits[habit.id] ?? false;
+                            final isSelected =
+                                selectedHabits[habit.id] ?? false;
 
                             // Determine colors based on habit nature
-                            final Color iconColor = habit.nature == HabitNature.positive
-                                ? Colors.green.shade400
-                                : Colors.red.shade400;
+                            final Color iconColor =
+                                habit.nature == HabitNature.positive
+                                    ? Colors.green.shade400
+                                    : Colors.red.shade400;
 
                             final Color bgColor = isSelected
                                 ? (habit.nature == HabitNature.positive
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.red.withOpacity(0.1))
+                                    ? Colors.green.withOpacity(0.1)
+                                    : Colors.red.withOpacity(0.1))
                                 : Colors.transparent;
 
                             return Material(
@@ -724,9 +759,10 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
                                         ? 'Positive Habit'
                                         : 'Negative Habit',
                                     style: TextStyle(
-                                      color: habit.nature == HabitNature.positive
-                                          ? Colors.green.shade300
-                                          : Colors.red.shade300,
+                                      color:
+                                          habit.nature == HabitNature.positive
+                                              ? Colors.green.shade300
+                                              : Colors.red.shade300,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -752,7 +788,8 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
                                       color: iconColor,
                                     ),
                                   ),
-                                  controlAffinity: ListTileControlAffinity.leading,
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
                                 ),
                               ),
                             );
@@ -807,7 +844,8 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
     );
   }
 
-  Future<void> _updateGoalHabits(UserGoal goal, Map<String, bool> selectedHabits) async {
+  Future<void> _updateGoalHabits(
+      UserGoal goal, Map<String, bool> selectedHabits) async {
     try {
       setState(() {
         _isLoading = true;
@@ -865,12 +903,12 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
 
   int _calculateGoalWill(UserHabitState userHabitState, UserGoal goal) {
     int totalWill = 0;
-    
+
     // Get all habits associated with this goal
     final goalHabits = userHabitState.habits
         .where((habit) => goal.habitId.contains(habit.id))
         .toList();
-    
+
     // Sum up will from habit data for these habits only
     for (var habit in goalHabits) {
       final habitData = userHabitState.habitsData[habit.id];
@@ -878,7 +916,7 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
         totalWill += habitData.willObtained;
       }
     }
-    
+
     return totalWill;
   }
 }

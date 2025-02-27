@@ -20,7 +20,8 @@ class GoalsListPage extends ConsumerStatefulWidget {
   ConsumerState<GoalsListPage> createState() => _GoalsListScreenState();
 }
 
-class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTickerProviderStateMixin {
+class _GoalsListScreenState extends ConsumerState<GoalsListPage>
+    with SingleTickerProviderStateMixin {
   final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
   final String _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
   bool _isLoading = true;
@@ -95,13 +96,14 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
               builder: (context, ref, child) {
                 final habitState = ref.watch(habitStateProvider);
                 final totalWill = habitState.calculateTotalWill();
-                
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: GestureDetector(
                     onTap: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const WillHistoryPage()),
+                        MaterialPageRoute(
+                            builder: (context) => const WillHistoryPage()),
                       );
                     },
                     child: WillWidget(willPoints: totalWill),
@@ -156,7 +158,8 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -197,7 +200,8 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
             ElevatedButton.icon(
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const CreateGoalPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const CreateGoalPage()),
                 );
                 _loadGoals();
               },
@@ -206,7 +210,8 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -234,280 +239,200 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
   }
 
   Widget _buildGoalCard(UserGoal goal, UserHabitState userHabitState) {
-    // Calculate progress metrics for this goal
-    final goalHabits = userHabitState.habits
-        .where((habit) => goal.habitId.contains(habit.id))
-        .toList();
-    
-    // Target progress calculation
-    int totalTargetReps = 0;
-    int totalCompletedReps = 0;
-    
-    // Will progress calculation
-    int totalWillObtained = 0;
-    int maxWillPossible = 0;
-    
-    // Calculate metrics for all habits in this goal
-    for (var habit in goalHabits) {
-      final habitData = userHabitState.habitsData[habit.id];
+    // Calculate core metrics
+    final totalWillObtained = _calculateTotalWillObtained(goal, userHabitState);
+    final totalHabits = goal.habitId.length;
+    final completedHabits = _calculateCompletedHabits(goal, userHabitState);
+
+    // Calculate progress
+    int totalTargetSteps = 0;
+    int totalCompletedSteps = 0;
+
+    for (final habitId in goal.habitId) {
+      final habit = userHabitState.habits.firstWhere(
+        (h) => h.id == habitId,
+        orElse: () => UserHabit(
+          id: '',
+          name: '',
+          repUnit: '',
+          repStep: 1,
+          targetReps: 0,
+          uid: '',
+          createdAt: DateTime.now(),
+          habitType: HabitType.regular,
+          nature: HabitNature.positive,
+          weeklySchedule: const WeeklySchedule(),
+          isArchived: false,
+          frequencyType: FrequencyType.daily,
+        ),
+      );
+
+      if (habit.id.isEmpty || habit.targetReps <= 0) continue;
+
+      final habitData = userHabitState.habitsData[habitId];
       if (habitData != null) {
-        // Target progress
-        totalTargetReps += habitData.targetReps;
-        totalCompletedReps += habitData.reps;
-        
-        // Will progress
-        totalWillObtained += habitData.willObtained;
-        maxWillPossible += habitData.startingWill + (habitData.targetReps * (habit.willPerRep ?? 0));
+        totalTargetSteps += (habit.targetReps / habit.repStep).toInt();
+        totalCompletedSteps += (habitData.reps / habit.repStep).toInt();
       }
     }
-    
-    // Calculate progress percentages (prevent division by zero)
-    final targetProgress = totalTargetReps > 0 ? totalCompletedReps / totalTargetReps : 0.0;
-    final willProgress = maxWillPossible > 0 ? totalWillObtained / maxWillPossible : 0.0;
-    
-    // Format percentages for display
-    final targetPercent = (targetProgress * 100).toInt();
-    final willPercent = (willProgress * 100).toInt();
-    
-    // Generate random colors for the card
-    final List<List<Color>> colorSets = [
-      [Colors.blue.shade700, Colors.blue.shade900],
-      [Colors.purple.shade700, Colors.purple.shade900],
-      [Colors.teal.shade700, Colors.teal.shade900],
-      [Colors.indigo.shade700, Colors.indigo.shade900],
-      [Colors.deepPurple.shade700, Colors.deepPurple.shade900],
-      [Colors.cyan.shade700, Colors.cyan.shade900],
-      [Colors.green.shade700, Colors.green.shade900],
-    ];
-    
-    // Use the goal's id to select a consistent color for each goal
-    final colorIndex = goal.id.hashCode % colorSets.length;
-    final headerColors = colorSets[colorIndex];
-    
+
+    // Calculate percentage for visual elements
+    final progress =
+        totalTargetSteps > 0 ? totalCompletedSteps / totalTargetSteps : 0.0;
+    final progressPercent = (progress * 100).toInt();
+
+    // Choose dynamic colors based on progress
+    final Color progressColor = progressPercent > 75
+        ? Colors.green
+        : progressPercent > 50
+            ? Colors.amber
+            : progressPercent > 25
+                ? Colors.orange
+                : Colors.red;
+
     return Card(
       elevation: 8,
+      shadowColor: Colors.black54,
+      margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(15),
       ),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => GoalScreen(goal: goal),
-            ),
-          );
-          _loadGoals();
-        },
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF2D2D2D),
-                Color(0xFF1A1A1A),
-              ],
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF2D2D2D),
+              const Color(0xFF1F1F1F),
+            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => GoalScreen(goal: goal)),
+            );
+          },
+          child: Stack(
             children: [
-              // Goal header with gradient - using random colors
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                height: 50, // Even smaller height
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: headerColors,
+              // Decorative circle
+              Positioned(
+                top: -20,
+                right: -20,
+                child: Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: progressColor.withOpacity(0.15),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        goal.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    // Habit count moved here
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.checklist,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${goalHabits.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
               ),
-              
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Goal description
-                      if (goal.description.isNotEmpty) ...[
-                        Text(
-                          goal.description,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 12,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      
-                      const Spacer(),
-                      
-                      // Cool progress indicators - using circular progress
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          // Target Progress
-                          Column(
-                            children: [
-                              Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Background circle
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade800,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  // Progress circle
-                                  SizedBox(
-                                    width: 50,
-                                    height: 50,
-                                    child: CircularProgressIndicator(
-                                      value: targetProgress.clamp(0.0, 1.0),
-                                      strokeWidth: 5,
-                                      backgroundColor: Colors.transparent,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade500),
-                                    ),
-                                  ),
-                                  // Icon
-                                  Icon(
-                                    Icons.flag,
-                                    color: Colors.green.shade300,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Percentage text
-                              Text(
-                                '$targetPercent%',
-                                style: TextStyle(
-                                  color: Colors.green.shade300,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          
-                          // Will Progress
-                          Column(
-                            children: [
-                              Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Background circle
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade800,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  // Progress circle
-                                  SizedBox(
-                                    width: 50,
-                                    height: 50,
-                                    child: CircularProgressIndicator(
-                                      value: willProgress.clamp(0.0, 1.0),
-                                      strokeWidth: 5,
-                                      backgroundColor: Colors.transparent,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.amber.shade500),
-                                    ),
-                                  ),
-                                  // Icon
-                                  Icon(
-                                    Icons.bolt,
-                                    color: Colors.amber.shade300,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Percentage text
-                              Text(
-                                '$willPercent%',
-                                style: TextStyle(
-                                  color: Colors.amber.shade300,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+
+              // Main content
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Goal name
+                    Text(
+                      goal.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                      
-                      // Add a row below the progress indicators for will obtained
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade900.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Progress circle
+                    Center(
+                      child: SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: Stack(
                           children: [
-                            Icon(
-                              Icons.bolt,
-                              color: Colors.amber.shade300,
-                              size: 14,
+                            // Progress indicator
+                            ShaderMask(
+                              shaderCallback: (rect) {
+                                return SweepGradient(
+                                  startAngle: 0.0,
+                                  endAngle: progress * 2 * 3.14159,
+                                  stops: const [0.0, 1.0],
+                                  center: Alignment.center,
+                                  colors: [progressColor, progressColor],
+                                ).createShader(rect);
+                              },
+                              child: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.grey.shade800,
+                                    width: 5,
+                                  ),
+                                ),
+                              ),
                             ),
-                            const SizedBox(width: 4),
+
+                            // Center circle with percent
+                            Center(
+                              child: Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF222222),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 2,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '$progressPercent%',
+                                        style: TextStyle(
+                                          color: progressColor,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Stats row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Will Points
+                        Column(
+                          children: [
+                            Icon(Icons.bolt,
+                                color: Colors.amber.shade300, size: 18),
+                            const SizedBox(height: 2),
                             Text(
                               '$totalWillObtained',
                               style: TextStyle(
@@ -516,11 +441,66 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            Text(
+                              'WILL',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 10,
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
+
+                        // Habits
+                        Column(
+                          children: [
+                            Icon(Icons.list,
+                                color: Colors.blue.shade300, size: 18),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$completedHabits/$totalHabits',
+                              style: TextStyle(
+                                color: Colors.blue.shade300,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'HABITS',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // Steps
+                        Column(
+                          children: [
+                            Icon(Icons.flag,
+                                color: Colors.green.shade300, size: 18),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$totalCompletedSteps/$totalTargetSteps',
+                              style: TextStyle(
+                                color: Colors.green.shade300,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'STEPS',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -536,7 +516,8 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2D2D2D),
-          title: const Text('Delete Goal', style: TextStyle(color: Colors.white)),
+          title:
+              const Text('Delete Goal', style: TextStyle(color: Colors.white)),
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
@@ -600,5 +581,48 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage> with SingleTick
         SnackBar(content: Text('Failed to delete goal: $e')),
       );
     }
+  }
+
+  int _calculateCompletedHabits(UserGoal goal, UserHabitState userHabitState) {
+    int completed = 0;
+    for (final habitId in goal.habitId) {
+      final habit = userHabitState.habits.firstWhere(
+        (h) => h.id == habitId,
+        orElse: () => UserHabit(
+          id: '',
+          name: '',
+          repUnit: '',
+          repStep: 1,
+          targetReps: 0,
+          uid: '',
+          createdAt: DateTime.now(),
+          habitType: HabitType.regular,
+          nature: HabitNature.positive,
+          weeklySchedule: const WeeklySchedule(),
+          isArchived: false,
+          frequencyType: FrequencyType.daily,
+        ),
+      );
+
+      if (habit.id.isEmpty) continue;
+
+      final habitData = userHabitState.habitsData[habitId];
+      if (habitData != null && habitData.isCompleted) {
+        completed++;
+      }
+    }
+    return completed;
+  }
+
+  int _calculateTotalWillObtained(
+      UserGoal goal, UserHabitState userHabitState) {
+    int totalWill = 0;
+    for (final habitId in goal.habitId) {
+      final habitData = userHabitState.habitsData[habitId];
+      if (habitData != null) {
+        totalWill += habitData.willObtained;
+      }
+    }
+    return totalWill;
   }
 }
