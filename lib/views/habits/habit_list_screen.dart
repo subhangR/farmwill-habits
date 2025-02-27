@@ -1,7 +1,5 @@
 import 'package:farmwill_habits/views/habits/widgets/calendar_widget.dart';
 import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
-import 'package:farmwill_habits/views/habits/widgets/habit_card_v2.dart';
-import 'package:farmwill_habits/views/habits/widgets/personal_drawer.dart';
 import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,7 +10,6 @@ import 'package:get_it/get_it.dart';
 import '../../models/habit_data.dart';
 import '../../models/habits.dart';
 import '../../repositories/habits_repository.dart';
-import 'create_habit_page.dart';
 import 'create_habit_page_v2.dart';
 import 'habit_state.dart';
 import 'habit_details_page.dart';
@@ -43,14 +40,15 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadHabitsAndData();
+    // Use Future.microtask to avoid modifying provider during build
+    Future.microtask(() => _loadHabitsAndData());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh data when dependencies change (like returning from another screen)
-    _loadHabitsAndData();
+    // Use Future.microtask to avoid modifying provider during build
+    Future.microtask(() => _loadHabitsAndData());
   }
 
   void _toggleCalendar() {
@@ -94,37 +92,38 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
   }
 
   // Sort habits based on current sort option
-  List<UserHabit> _getSortedHabits(List<UserHabit> habits, Map<String, HabitData> habitsData) {
+  List<UserHabit> _getSortedHabits(
+      List<UserHabit> habits, Map<String, HabitData> habitsData) {
     final sortedHabits = List<UserHabit>.from(habits);
-    
+
     switch (_currentSortOption) {
       case HabitSortOption.name:
-        sortedHabits.sort((a, b) => _sortAscending 
-            ? a.name.compareTo(b.name) 
+        sortedHabits.sort((a, b) => _sortAscending
+            ? a.name.compareTo(b.name)
             : b.name.compareTo(a.name));
         break;
-        
+
       case HabitSortOption.willPerRep:
         sortedHabits.sort((a, b) {
           final aWillPerRep = a.willPerRep ?? 0;
           final bWillPerRep = b.willPerRep ?? 0;
-          return _sortAscending 
-              ? aWillPerRep.compareTo(bWillPerRep) 
+          return _sortAscending
+              ? aWillPerRep.compareTo(bWillPerRep)
               : bWillPerRep.compareTo(aWillPerRep);
         });
         break;
-        
+
       case HabitSortOption.willGained:
         sortedHabits.sort((a, b) {
           final aWillGained = habitsData[a.id]?.willObtained ?? 0;
           final bWillGained = habitsData[b.id]?.willObtained ?? 0;
-          return _sortAscending 
-              ? aWillGained.compareTo(bWillGained) 
+          return _sortAscending
+              ? aWillGained.compareTo(bWillGained)
               : bWillGained.compareTo(aWillGained);
         });
         break;
     }
-    
+
     return sortedHabits;
   }
 
@@ -197,7 +196,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     required HabitSortOption sortOption,
   }) {
     final isSelected = _currentSortOption == sortOption;
-    
+
     return ListTile(
       leading: Icon(
         icon,
@@ -210,9 +209,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: isSelected
-          ? const Icon(Icons.check, color: Colors.blue)
-          : null,
+      trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
       onTap: () {
         setState(() {
           _currentSortOption = sortOption;
@@ -245,14 +242,16 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
             child: GestureDetector(
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const WillHistoryPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const WillHistoryPage()),
                 );
               },
               child: WillWidget(willPoints: willPoints),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.calendar_month, color: Colors.white, size: 24),
+            icon:
+                const Icon(Icons.calendar_month, color: Colors.white, size: 24),
             onPressed: _toggleCalendar,
           ),
           const SizedBox(width: 8),
@@ -269,7 +268,8 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
                     icon: const Icon(Icons.add, color: Colors.white, size: 20),
                     onPressed: () async {
                       await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const EditHabitPageV2()),
+                        MaterialPageRoute(
+                            builder: (context) => const EditHabitPageV2()),
                       );
                       // Reload habits after returning from create page
                       _loadHabitsAndData();
@@ -291,12 +291,12 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
               height: _showCalendar ? null : 0,
               child: _showCalendar
                   ? Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: CalendarWidget(
-                  initialDate: _selectedDate,
-                  onDateSelected: _onDateSelected,
-                ),
-              )
+                      padding: const EdgeInsets.all(16.0),
+                      child: CalendarWidget(
+                        initialDate: _selectedDate,
+                        onDateSelected: _onDateSelected,
+                      ),
+                    )
                   : null,
             ),
 
@@ -313,7 +313,8 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
                       onTap: _showSortOptions,
                       borderRadius: BorderRadius.circular(50),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade700,
                           borderRadius: BorderRadius.circular(20),
@@ -344,7 +345,9 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
                             ),
                             const SizedBox(width: 4),
                             Icon(
-                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                              _sortAscending
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
                               size: 14,
                               color: Colors.white,
                             ),
@@ -367,7 +370,8 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     );
   }
 
-  Widget _buildHabitsList(UserHabitState userHabitState, List<UserHabit> sortedHabits) {
+  Widget _buildHabitsList(
+      UserHabitState userHabitState, List<UserHabit> sortedHabits) {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
@@ -409,7 +413,8 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
             ElevatedButton(
               onPressed: () async {
                 await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const EditHabitPageV2()),
+                  MaterialPageRoute(
+                      builder: (context) => const EditHabitPageV2()),
                 );
                 _loadHabitsAndData();
               },
@@ -431,10 +436,13 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
       itemCount: sortedHabits.length,
       itemBuilder: (context, index) {
         final habit = sortedHabits[index];
+        final habitData = userHabitState.habitsData[habit.id];
         return HabitCard(
           userHabit: habit,
-
+          habitData: habitData,
+          selectedDate: _selectedDate,
         );
+      
       },
     );
   }

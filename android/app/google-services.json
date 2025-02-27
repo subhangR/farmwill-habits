@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "698238504542",
+    "firebase_url": "https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app",
     "project_id": "farmwill-habits",
     "storage_bucket": "farmwill-habits.firebasestorage.app"
   },

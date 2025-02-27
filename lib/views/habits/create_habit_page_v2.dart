@@ -1,5 +1,4 @@
 // File: edit_habit_page.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:farmwill_habits/views/habits/widgets/habit_nature_selector.dart';
 import 'package:farmwill_habits/views/habits/widgets/weekly_schedule_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -84,10 +83,24 @@ class _EditHabitPageV2State extends State<EditHabitPageV2> {
                 controller: _controller,
                 isEdit: widget.userHabit != null,
                 onSubmit: () async {
-                
-                  final habit = await _controller.submitHabit();
-                  if (mounted && habit != null) {
-                    Navigator.pop(context, habit);
+                  // Add debug print
+                  print("Submit callback triggered");
+
+                  try {
+                    final habit = await _controller.submitHabit();
+                    if (context.mounted && habit != null) {
+                      print("Habit created successfully, popping with result");
+                      Navigator.pop(context, habit);
+                    } else {
+                      print("Habit is null or context is not mounted");
+                    }
+                  } catch (e) {
+                    print("Error in submit callback: $e");
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to save habit: $e')),
+                      );
+                    }
                   }
                 },
               ),
@@ -107,8 +120,8 @@ class HabitFormController extends ChangeNotifier {
   final TextEditingController maxWillController;
   final TextEditingController willPerMinuteController;
   final TextEditingController startingWillController;
+  final TextEditingController unitTypeController;
   late HabitsRepository habitsRepository;
-
 
   HabitNature nature;
   WeeklySchedule _weeklySchedule;
@@ -117,6 +130,9 @@ class HabitFormController extends ChangeNotifier {
   int willPerRep;
   int maxWill;
   int startingWill;
+  int willPerRepValue = 0;
+  int maxWillValue = 0;
+  int startingWillValue = 0;
   FrequencyType _frequencyType;
 
   final HabitNature _nature;
@@ -126,6 +142,12 @@ class HabitFormController extends ChangeNotifier {
 
   WeeklySchedule get weeklySchedule => _weeklySchedule;
 
+  int _repetitionStep;
+  String _repetitionUnitType;
+
+  int get repetitionStep => _repetitionStep;
+  String get repetitionUnitType => _repetitionUnitType;
+
   HabitFormController(this.originalHabit)
       : nameController = TextEditingController(text: originalHabit?.name ?? ''),
         maxScoreController = TextEditingController(),
@@ -133,9 +155,11 @@ class HabitFormController extends ChangeNotifier {
         maxWillController = TextEditingController(),
         willPerMinuteController = TextEditingController(),
         startingWillController = TextEditingController(),
+        unitTypeController =
+            TextEditingController(text: originalHabit?.repUnit ?? 'reps'),
         nature = originalHabit?.nature ?? HabitNature.positive,
-        _weeklySchedule = originalHabit?.weeklySchedule ??
-            const WeeklySchedule(),
+        _weeklySchedule =
+            originalHabit?.weeklySchedule ?? const WeeklySchedule(),
         _frequencyType = FrequencyType.daily,
         repetitions = originalHabit?.targetReps ?? 1,
         willPerRep = originalHabit?.willPerRep ?? 1,
@@ -143,11 +167,10 @@ class HabitFormController extends ChangeNotifier {
         maxWill = 1,
         _nature = originalHabit?.nature ?? HabitNature.positive,
         startingWill = originalHabit?.startingWill ?? 0,
-        _repetitionStep = originalHabit?.repetitionStep ?? 1,
-        _repetitionUnitType = originalHabit?.repetitionUnitType ?? 'reps' {
+        _repetitionStep = originalHabit?.repStep ?? 1,
+        _repetitionUnitType = originalHabit?.repUnit ?? 'reps' {
     _initializeControllers();
     habitsRepository = GetIt.I<HabitsRepository>();
-
   }
 
   static final List<String> _defaultUnitTypes = [
@@ -162,7 +185,7 @@ class HabitFormController extends ChangeNotifier {
   // Inside HabitFormController class
 
 // Update the nature property to use proper getter/setter
- // ature method that properly notifies listeners
+  // ature method that properly notifies listeners
   void updateNature(HabitNature newNature) {
     // Only update if there's a change to avoid unnecessary rebuilds
     if (nature != newNature) {
@@ -171,7 +194,7 @@ class HabitFormController extends ChangeNotifier {
 
       // If it's a negative habit, update weekly schedule to all days
       if (newNature == HabitNature.negative) {
-        weeklySchedule = const WeeklySchedule(
+        updateWeeklySchedule(const WeeklySchedule(
           monday: true,
           tuesday: true,
           wednesday: true,
@@ -179,7 +202,7 @@ class HabitFormController extends ChangeNotifier {
           friday: true,
           saturday: true,
           sunday: true,
-        );
+        ));
       }
 
       // Update will-related values if will is enabled
@@ -202,32 +225,26 @@ class HabitFormController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
   // Add a modifiable list for custom unit types
   final List<String> _customUnitTypes = [];
 
   // Getter that combines both default and custom unit types
   List<String> get unitTypes => [..._defaultUnitTypes, ..._customUnitTypes];
 
-  String _repetitionUnitType = "reps";
   bool _isEditingUnitType = false;
-  final TextEditingController unitTypeController = TextEditingController();
-
-  String get repetitionUnitType => _repetitionUnitType;
   bool get isEditingUnitType => _isEditingUnitType;
 
   void updateRepetitionUnitType(String value) {
-    // Validate the value
-    if (!_isEditingUnitType && !unitTypes.contains(value)) {
-      value = _defaultUnitTypes.first;  // Default to first value if invalid
-    }
-
+    print("Updating unit type to: $value");
     _repetitionUnitType = value;
     unitTypeController.text = value;
+    notifyListeners();
+  }
 
-    // Update will-related labels but keep the values
-    if (willEnabled ) {
-      notifyListeners();
-    }
+  void updateRepetitionStep(int step) {
+    _repetitionStep = step;
+    notifyListeners();
   }
 
   void toggleUnitTypeEditing() {
@@ -259,8 +276,6 @@ class HabitFormController extends ChangeNotifier {
     super.dispose();
   }
 
-
-
   void updateFrequencyType(FrequencyType type) {
     _frequencyType = type;
 
@@ -281,17 +296,11 @@ class HabitFormController extends ChangeNotifier {
     notifyListeners();
   }
 
-
-
-
-
   bool _isBoundedTarget = true;
   int _repetitionUnits = 1;
-  int _repetitionStep = 1;
 
   bool get isBoundedTarget => _isBoundedTarget;
   int get repetitionUnits => _repetitionUnits;
-  int get repetitionStep => _repetitionStep;
 
   set isBoundedTarget(bool value) {
     _isBoundedTarget = value;
@@ -300,18 +309,6 @@ class HabitFormController extends ChangeNotifier {
 
   void updateRepetitionUnits(int value) {
     _repetitionUnits = value;
-    notifyListeners();
-  }
-
-  void updateRepetitionStep(int value) {
-    _repetitionStep = value;
-    notifyListeners();
-  }
-
-
-
-  set weeklySchedule(WeeklySchedule value) {
-    _weeklySchedule = value;
     notifyListeners();
   }
 
@@ -328,75 +325,109 @@ class HabitFormController extends ChangeNotifier {
   }
 
   void _initializeControllers() {
-    willPerRepController.text = willPerRep.toString();
-    maxWillController.text = maxWill.toString();
-    startingWillController.text = startingWill.toString();
+    // Set will per rep controller
+    if (willPerRep != 0) {
+      willPerRepController.text = willPerRep.abs().toString();
+    } else {
+      willPerRepController.text = "1"; // Default value
+    }
+
+    // Set max will controller
+    if (originalHabit?.maxWill != null) {
+      maxWill = originalHabit!.maxWill!;
+      maxWillController.text = maxWill.abs().toString();
+    } else {
+      maxWill = nature == HabitNature.negative ? -10 : 10;
+      maxWillController.text = "10"; // Default value
+    }
+
+    // Set starting will controller
+    if (originalHabit?.startingWill != null) {
+      startingWill = originalHabit!.startingWill!;
+      startingWillController.text = startingWill.toString();
+    } else {
+      startingWillController.text = "0"; // Default value
+    }
   }
 
   Future<UserHabit?> submitHabit() async {
     try {
+      print("Starting submitHabit method");
       final userId = FirebaseAuth.instance.currentUser!.uid;
+      if (userId.isEmpty) {
+        print("No user ID found");
+        throw Exception("User not signed in");
+      }
 
-      // Debug output
-      print("Creating habit with: ");
+      print("User ID: $userId");
       print("Name: ${nameController.text}");
       print("Nature: $nature");
-      print("willEnabled: $willEnabled");
-      print("willPerRep: $willPerRep");
-      print("maxWill: $maxWill");
-      
-      // For negative habits with will enabled, ensure values are negative
-      if (nature == HabitNature.negative && willEnabled) {
-        // Force negative values for negative habits
-        willPerRep = -willPerRep.abs();
-        maxWill = -maxWill.abs();
-        
-        print("Adjusted for negative habit:");
-        print("willPerRep: $willPerRep");
-        print("maxWill: $maxWill");
+      print("Weekly schedule: ${_weeklySchedule.toMap()}");
+      print("Repetitions: $repetitions");
+      print("Will enabled: $willEnabled");
+
+      // Parse will-related values when enabled
+      int? finalWillPerRep = null;
+      int? finalMaxWill = null;
+      int? finalStartingWill = null;
+
+      if (willEnabled) {
+        try {
+          finalWillPerRep = int.parse(willPerRepController.text);
+          finalMaxWill = int.parse(maxWillController.text);
+
+          if (startingWillController.text.isNotEmpty) {
+            finalStartingWill = int.parse(startingWillController.text);
+          } else {
+            finalStartingWill = 0;
+          }
+
+          // Apply negative values for negative habits
+          if (nature == HabitNature.negative) {
+            finalWillPerRep = -finalWillPerRep.abs();
+            finalMaxWill = -finalMaxWill.abs();
+          }
+        } catch (e) {
+          print("Error parsing will values: $e");
+          throw Exception("Invalid will values: $e");
+        }
       }
-      
-      // Ensure weekly schedule is set for negative habits
-      if (nature == HabitNature.negative) {
-        _weeklySchedule = const WeeklySchedule(
-          monday: true,
-          tuesday: true,
-          wednesday: true,
-          thursday: true,
-          friday: true,
-          saturday: true,
-          sunday: true,
-        );
-        print("Set all days for negative habit");
-      }
-      
+
+      // Generate a new ID if this is a new habit
+      final String habitId =
+          originalHabit?.id ?? "habit_${DateTime.now().millisecondsSinceEpoch}";
+
+      print("Generated Habit ID: $habitId");
+
       final habit = UserHabit(
         frequencyType: _frequencyType,
         uid: userId,
-        id: originalHabit?.id ?? FirebaseFirestore.instance.collection('user_habits').doc().id,
+        id: habitId,
         name: nameController.text,
         habitType: HabitType.regular,
         nature: nature,
         weeklySchedule: _weeklySchedule,
         targetReps: repetitions,
-        willPerRep: willEnabled ? willPerRep : null,
-        maxWill: willEnabled ? maxWill : null,
-        startingWill: willEnabled ? startingWill : null,
+        willPerRep: finalWillPerRep,
+        maxWill: finalMaxWill,
+        startingWill: finalStartingWill,
         createdAt: originalHabit?.createdAt ?? DateTime.now(),
         isArchived: originalHabit?.isArchived ?? false,
-        repetitionStep: _repetitionStep,
-        repetitionUnitType: _repetitionUnitType,
+        repStep: _repetitionStep,
+        repUnit: _repetitionUnitType,
       );
 
       // Debug the created habit
-      print("Created habit: ${habit.toMap()}");
+      print("Preparing to save habit: ${habit.toMap()}");
 
       if (originalHabit == null) {
         // Create new habit
+        print("Creating new habit in repository...");
         await habitsRepository.createHabit(userId, habit);
-        print("Habit created successfully");
+        print("Habit created successfully in repository");
       } else {
         // Update existing habit
+        print("Updating existing habit...");
         await habitsRepository.updateHabit(userId, habit);
         print("Habit updated successfully");
       }
@@ -404,10 +435,15 @@ class HabitFormController extends ChangeNotifier {
       return habit;
     } catch (e) {
       print("Error creating/updating habit: $e");
-      rethrow;
+      throw Exception("Failed to save habit: $e");
     }
   }
 
+  // Add the setter for weeklySchedule
+  set weeklySchedule(WeeklySchedule schedule) {
+    _weeklySchedule = schedule;
+    notifyListeners();
+  }
 }
 
 // File: components/name_section.dart
@@ -533,7 +569,6 @@ class _FrequencySectionState extends State<FrequencySection> {
               ),
             ),
             const SizedBox(height: 16),
-
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF2A2A2A),
@@ -543,19 +578,22 @@ class _FrequencySectionState extends State<FrequencySection> {
                 children: [
                   _FrequencyTypeButton(
                     title: 'One Time',
-                    isSelected: widget.controller.frequencyType == FrequencyType.onetime,
-                    onTap: () => widget.controller.updateFrequencyType(FrequencyType.onetime),
+                    isSelected: widget.controller.frequencyType ==
+                        FrequencyType.onetime,
+                    onTap: () => widget.controller
+                        .updateFrequencyType(FrequencyType.onetime),
                   ),
                   _FrequencyTypeButton(
                     title: 'Daily',
-                    isSelected: widget.controller.frequencyType == FrequencyType.daily,
-                    onTap: () => widget.controller.updateFrequencyType(FrequencyType.daily),
+                    isSelected:
+                        widget.controller.frequencyType == FrequencyType.daily,
+                    onTap: () => widget.controller
+                        .updateFrequencyType(FrequencyType.daily),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-
             if (widget.controller.frequencyType == FrequencyType.daily) ...[
               const Text(
                 'Schedule',
@@ -600,7 +638,8 @@ class _FrequencyTypeButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white.withOpacity(0.1) : Colors.transparent,
+            color:
+                isSelected ? Colors.white.withOpacity(0.1) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Center(
@@ -617,7 +656,6 @@ class _FrequencyTypeButton extends StatelessWidget {
     );
   }
 }
-
 
 class _WeeklySchedule extends StatelessWidget {
   final Map<String, bool> schedule;
@@ -652,11 +690,13 @@ class _WeeklySchedule extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: days.map((day) => _DayButton(
-          day: day,
-          isSelected: schedule[day] ?? false,
-          onToggle: () => onToggleDay(day),
-        )).toList(),
+        children: days
+            .map((day) => _DayButton(
+                  day: day,
+                  isSelected: schedule[day] ?? false,
+                  onToggle: () => onToggleDay(day),
+                ))
+            .toList(),
       ),
     );
   }
@@ -690,7 +730,7 @@ class _DayButton extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            day.substring(0, 3),  // Show first 3 letters
+            day.substring(0, 3), // Show first 3 letters
             style: TextStyle(
               color: isSelected ? Colors.blue : Colors.white60,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -701,18 +741,19 @@ class _DayButton extends StatelessWidget {
     );
   }
 }
+
 // File: components/goal_section.dart
 // Updated CircularIconButton to handle nullable callback
 class CircularIconButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback? onTap;  // Make callback nullable
+  final VoidCallback? onTap; // Make callback nullable
   final Color backgroundColor;
   final Color iconColor;
 
   const CircularIconButton({
     super.key,
     required this.icon,
-    this.onTap,  // Make it optional
+    this.onTap, // Make it optional
     required this.backgroundColor,
     required this.iconColor,
   });
@@ -723,7 +764,7 @@ class CircularIconButton extends StatelessWidget {
       color: backgroundColor,
       shape: const CircleBorder(),
       child: InkWell(
-        onTap: onTap,  // InkWell accepts nullable callback
+        onTap: onTap, // InkWell accepts nullable callback
         customBorder: const CircleBorder(),
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -746,20 +787,13 @@ class TargetSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        dividerColor: Colors.grey[800],
-        unselectedWidgetColor: Colors.grey[400],
-        colorScheme: ColorScheme.dark(
-          primary: Colors.white,
-          secondary: Colors.grey[400]!,
-        ),
-      ),
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) {
-          return ExpansionTile(
-            title: const Text(
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
               'Target',
               style: TextStyle(
                 fontSize: 20,
@@ -767,166 +801,32 @@ class TargetSection extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTargetBoundToggle(),
-                    const SizedBox(height: 24),
-                    _buildCombinedTargetInput(),
-                    const SizedBox(height: 24),
-                    _buildStepInput(),
-                    const SizedBox(height: 24),
-                    WillSection(controller: controller),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 16),
+
+            // Step input for increment value
+            _buildStepInput(context),
+
+            const SizedBox(height: 16),
+
+            // Target repetitions section
+            _buildRepetitionsSection(),
+
+            // Will settings
+            if (controller.willEnabled) ...[
+              const SizedBox(height: 24),
+              _buildWillSettings(),
             ],
-          );
-        },
-      ),
+
+            // Toggle for will points
+            const SizedBox(height: 24),
+            _buildWillToggle(),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildCombinedTargetInput() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Target',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: controller.isBoundedTarget
-                  ? Colors.blue.withOpacity(0.3)
-                  : Colors.grey.withOpacity(0.2),
-            ),
-          ),
-          child: Row(
-            children: [
-              // Number Input
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  enabled: controller.isBoundedTarget,
-                  initialValue: controller.repetitions.toString(),
-                  style: TextStyle(
-                    color: controller.isBoundedTarget ? Colors.white : Colors.grey,
-                    fontSize: 16,
-                  ),
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (text) {
-                    final newValue = int.tryParse(text);
-                    if (newValue != null && newValue > 0) {
-                      controller.repetitions = newValue;
-                      controller.notifyListeners();
-                    }
-                  },
-                ),
-              ),
-              // Vertical Divider
-              Container(
-                height: 30,
-                width: 1,
-                color: Colors.grey.withOpacity(0.3),
-              ),
-              // Unit Type Input
-              Expanded(
-                flex: 3,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: controller.isEditingUnitType
-                          ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: TextFormField(
-                          controller: controller.unitTypeController,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                          ),
-                          onFieldSubmitted: (value) {
-                            if (value.isNotEmpty) {
-                              controller.updateRepetitionUnitType(value);
-                            }
-                            controller.toggleUnitTypeEditing();
-                          },
-                        ),
-                      )
-                          : DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: controller.repetitionUnitType,
-                          dropdownColor: const Color(0xFF2A2A2A),
-                          icon: const SizedBox.shrink(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                          items: controller.unitTypes.map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 8.0),
-                                child: Text(value),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              controller.updateRepetitionUnitType(newValue);
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    // Edit Button
-                    IconButton(
-                      icon: Icon(
-                        controller.isEditingUnitType ? Icons.check : Icons.edit,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        if (controller.isEditingUnitType &&
-                            controller.unitTypeController.text.isNotEmpty) {
-                          controller.updateRepetitionUnitType(
-                              controller.unitTypeController.text);
-                        }
-                        controller.toggleUnitTypeEditing();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepInput() {
+  Widget _buildStepInput(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -947,70 +847,58 @@ class TargetSection extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: TextFormField(
-                  initialValue: controller.repetitionStep.toString(),
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: InputBorder.none,
-                    suffixText: ' ${controller.repetitionUnitType}',
-                    suffixStyle: const TextStyle(
+                child: ListenableBuilder(
+                  listenable: controller,
+                  builder: (context, _) {
+                    return TextFormField(
+                      initialValue: controller.repetitionStep.toString(),
+                      style: const TextStyle(color: Colors.white),
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: InputBorder.none,
+                        suffixText: ' ${controller.repetitionUnitType}',
+                        suffixStyle: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
+                      ),
+                      onChanged: (text) {
+                        final newValue = int.tryParse(text);
+                        if (newValue != null && newValue > 0) {
+                          controller.updateRepetitionStep(newValue);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _showUnitTypeDialog(context),
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
+                    child: const Icon(
+                      Icons.edit,
                       color: Colors.grey,
-                      fontSize: 14,
+                      size: 18,
                     ),
                   ),
-                  onChanged: (text) {
-                    final newValue = int.tryParse(text);
-                    if (newValue != null && newValue > 0) {
-                      controller.updateRepetitionStep(newValue);
-                    }
-                  },
                 ),
               ),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildTargetBoundToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Target Type',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          Switch(
-            value: controller.isBoundedTarget,
-            onChanged: (value) => controller.isBoundedTarget = value,
-            activeColor: Colors.blue,
-            activeTrackColor: Colors.blue.withOpacity(0.3),
-          ),
-          Text(
-            controller.isBoundedTarget ? 'Bounded' : 'Boundless',
-            style: TextStyle(
-              color: controller.isBoundedTarget ? Colors.blue : Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1026,229 +914,202 @@ class TargetSection extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           decoration: BoxDecoration(
             color: const Color(0xFF2A2A2A),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: controller.isBoundedTarget
-                  ? Colors.blue.withOpacity(0.3)
-                  : Colors.grey.withOpacity(0.2),
-            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              CircularIconButton(
-                icon: Icons.remove,
-                onTap: controller.isBoundedTarget
-                    ? () {
-                  if (controller.repetitions > 1) {
-                    controller.repetitions -= controller.repetitionStep;
-                    controller.notifyListeners();
+          child: ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              return TextFormField(
+                initialValue: controller.repetitions.toString(),
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: InputBorder.none,
+                  suffixText: ' ${controller.repetitionUnitType}',
+                  suffixStyle: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) => FormValidators.validateRepetitions(value),
+                onChanged: (text) {
+                  final newValue = int.tryParse(text);
+                  if (newValue != null && newValue >= 0) {
+                    controller.repetitions = newValue;
                   }
-                }
-                    : null,
-                backgroundColor: controller.isBoundedTarget
-                    ? const Color(0xFF592B2B)
-                    : Colors.grey.withOpacity(0.2),
-                iconColor: controller.isBoundedTarget
-                    ? Colors.red[300]!
-                    : Colors.grey,
-              ),
-              Text(
-                controller.isBoundedTarget
-                    ? controller.repetitions.toString()
-                    : '∞',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: controller.isBoundedTarget
-                      ? Colors.white
-                      : Colors.grey,
-                ),
-              ),
-              CircularIconButton(
-                icon: Icons.add,
-                onTap: controller.isBoundedTarget
-                    ? () {
-                  controller.repetitions += controller.repetitionStep;
-                  controller.notifyListeners();
-                }
-                    : null,
-                backgroundColor: controller.isBoundedTarget
-                    ? const Color(0xFF1B4B1B)
-                    : Colors.grey.withOpacity(0.2),
-                iconColor: controller.isBoundedTarget
-                    ? Colors.green[300]!
-                    : Colors.grey,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRepetitionConfigSection() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: _buildUnitInput(),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 2,
-          child: _buildNumberInput(
-            'Step',
-            controller.repetitionStep,
-                (value) => controller.updateRepetitionStep(value),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUnitInput() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Units',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              // Text Field
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  initialValue: controller.repetitions.toString(),
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (text) {
-                    final newValue = int.tryParse(text);
-                    if (newValue != null && newValue > 0) {
-                      controller.updateRepetitionUnits(newValue);
-                    }
-                  },
-                ),
-              ),
-              // Vertical Divider
-              Container(
-                height: 30,
-                width: 1,
-                color: Colors.grey.withOpacity(0.3),
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              // Dropdown
-              Expanded(
-                flex: 3,
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: controller.repetitionUnitType,
-                    dropdownColor: const Color(0xFF2A2A2A),
-                    icon: const Icon(
-                      Icons.arrow_drop_down,
-                      color: Colors.white,
-                    ),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    items: controller.unitTypes.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
-                          child: Text(
-                            value,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        controller.updateRepetitionUnitType(newValue);
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNumberInput(
-      String label,
-      int value,
-      Function(int) onChanged,
-      ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A2A2A),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TextFormField(
-            initialValue: value.toString(),
-            style: const TextStyle(color: Colors.white),
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              border: InputBorder.none,
-              hintStyle: TextStyle(color: Colors.grey[400]),
-            ),
-            onChanged: (text) {
-              final newValue = int.tryParse(text);
-              if (newValue != null && newValue > 0) {
-                onChanged(newValue);
-              }
+                },
+              );
             },
           ),
         ),
+        const SizedBox(height: 4),
+        const Text(
+          'The number of times you want to perform this habit',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
       ],
     );
   }
+
+  Widget _buildWillSettings() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          WillInputField(
+            title: 'Starting Will',
+            controller: controller.startingWillController,
+            onChanged: (value) {
+              final intValue = int.tryParse(value);
+              if (intValue != null) {
+                controller.startingWill = intValue;
+                controller.notifyListeners();
+              }
+            },
+            isNegative: false,
+          ),
+          const SizedBox(height: 16),
+          _buildDynamicWillInput(),
+          const SizedBox(height: 16),
+          WillInputField(
+            title: controller.nature == HabitNature.negative
+                ? 'Maximum Will Losable'
+                : 'Maximum Will Gainable',
+            controller: controller.maxWillController,
+            onChanged: (value) {
+              final intValue = int.tryParse(value);
+              if (intValue != null) {
+                controller.maxWill = controller.nature == HabitNature.negative
+                    ? -intValue.abs()
+                    : intValue;
+                controller.maxWillController.text = intValue.abs().toString();
+                controller.notifyListeners();
+              }
+            },
+            isNegative: controller.nature == HabitNature.negative,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWillToggle() {
+    return WillToggle(controller: controller);
+  }
+
+  Widget _buildDynamicWillInput() {
+    return WillInputField(
+      title: controller.nature == HabitNature.negative
+          ? 'Will Lost Per ${controller.repetitionUnitType}'
+          : 'Will Gained Per ${controller.repetitionUnitType}',
+      controller: controller.willPerRepController,
+      onChanged: (value) {
+        final intValue = int.tryParse(value);
+        if (intValue != null) {
+          controller.willPerRep = controller.nature == HabitNature.negative
+              ? -intValue.abs()
+              : intValue;
+          controller.willPerRepController.text = intValue.abs().toString();
+
+          // Update maxWill based on the new willPerRep value
+          controller.maxWill = controller.repetitions * controller.willPerRep;
+          controller.maxWillController.text =
+              controller.maxWill.abs().toString();
+
+          controller.notifyListeners();
+        }
+      },
+      isNegative: controller.nature == HabitNature.negative,
+    );
+  }
+
+  void _showUnitTypeDialog(BuildContext context) {
+    final TextEditingController textController =
+        TextEditingController(text: controller.repetitionUnitType);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Text(
+          'Edit Unit Type',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: textController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                hintText: 'Enter unit type (e.g., reps, minutes)',
+                hintStyle: TextStyle(color: Colors.grey),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: Colors.blue),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Predefined Types:',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: controller.unitTypes
+                  .map((unitType) => ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3A3A3A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                        ),
+                        onPressed: () {
+                          textController.text = unitType;
+                        },
+                        child: Text(unitType),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          TextButton(
+            child: const Text('Save', style: TextStyle(color: Colors.blue)),
+            onPressed: () {
+              if (textController.text.isNotEmpty) {
+                controller.updateRepetitionUnitType(textController.text.trim());
+                print("Unit type updated to: ${controller.repetitionUnitType}");
+                Navigator.pop(context);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }
+
 // File: utils/custom_input_decorations.dart
 class CustomInputDecorations {
   static InputDecoration textField({
@@ -1264,14 +1125,16 @@ class CustomInputDecorations {
         borderRadius: BorderRadius.circular(30),
         borderSide: BorderSide.none,
       ),
-      suffixIcon: suffixIcon != null ? Container(
-        margin: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFF3A3A3A),
-        ),
-        child: Icon(suffixIcon, color: Colors.white70),
-      ) : null,
+      suffixIcon: suffixIcon != null
+          ? Container(
+              margin: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF3A3A3A),
+              ),
+              child: Icon(suffixIcon, color: Colors.white70),
+            )
+          : null,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
   }
@@ -1408,10 +1271,12 @@ class WillSection extends StatelessWidget {
                         onChanged: (value) {
                           final intValue = int.tryParse(value);
                           if (intValue != null) {
-                            controller.maxWill = controller.nature == HabitNature.negative
-                                ? -intValue.abs()
-                                : intValue;
-                            controller.maxWillController.text = intValue.abs().toString();
+                            controller.maxWill =
+                                controller.nature == HabitNature.negative
+                                    ? -intValue.abs()
+                                    : intValue;
+                            controller.maxWillController.text =
+                                intValue.abs().toString();
                             controller.notifyListeners();
                           }
                         },
@@ -1423,36 +1288,34 @@ class WillSection extends StatelessWidget {
               ],
             ],
           );
-        }
-    );
+        });
   }
 
   Widget _buildDynamicWillInput() {
-      return WillInputField(
-        title: controller.nature == HabitNature.negative
-            ? 'Will Lost Per ${controller.repetitionUnitType}'
-            : 'Will Gained Per ${controller.repetitionUnitType}',
-        controller: controller.willPerRepController,
-        onChanged: (value) {
-          final intValue = int.tryParse(value);
-          if (intValue != null) {
-            controller.willPerRep = controller.nature == HabitNature.negative
-                ? -intValue.abs()
-                : intValue;
-            controller.willPerRepController.text = intValue.abs().toString();
+    return WillInputField(
+      title: controller.nature == HabitNature.negative
+          ? 'Will Lost Per ${controller.repetitionUnitType}'
+          : 'Will Gained Per ${controller.repetitionUnitType}',
+      controller: controller.willPerRepController,
+      onChanged: (value) {
+        final intValue = int.tryParse(value);
+        if (intValue != null) {
+          controller.willPerRep = controller.nature == HabitNature.negative
+              ? -intValue.abs()
+              : intValue;
+          controller.willPerRepController.text = intValue.abs().toString();
 
-            // Update maxWill based on the new willPerRep value
-              controller.maxWill = controller.repetitions * controller.willPerRep;
-              controller.maxWillController.text = controller.maxWill.abs().toString();
+          // Update maxWill based on the new willPerRep value
+          controller.maxWill = controller.repetitions * controller.willPerRep;
+          controller.maxWillController.text =
+              controller.maxWill.abs().toString();
 
-
-            controller.notifyListeners();
-          }
-        },
-        isNegative: controller.nature == HabitNature.negative,
-      );
-    }
-
+          controller.notifyListeners();
+        }
+      },
+      isNegative: controller.nature == HabitNature.negative,
+    );
+  }
 }
 
 // File: components/will_toggle.dart
@@ -1499,10 +1362,13 @@ class WillToggle extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    controller.willEnabled ? 'Track your will power' : 'Will tracking disabled',
+                    controller.willEnabled
+                        ? 'Track your will power'
+                        : 'Will tracking disabled',
                     style: TextStyle(
                       fontSize: 12,
-                      color: controller.willEnabled ? Colors.white70 : Colors.grey,
+                      color:
+                          controller.willEnabled ? Colors.white70 : Colors.grey,
                     ),
                   ),
                 ],
@@ -1562,7 +1428,7 @@ class WillInputField extends StatelessWidget {
           decoration: CustomInputDecorations.willInput(isNegative: isNegative),
           validator: (value) {
             // Special validation for Starting Will
-          
+
             // Default validation for other fields
             return FormValidators.validateInteger(value, title);
           },
@@ -1573,13 +1439,11 @@ class WillInputField extends StatelessWidget {
   }
 }
 
-
-
 class SubmitButton extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final HabitFormController controller;
   final bool isEdit;
-  final Future<void> Function() onSubmit;
+  final VoidCallback onSubmit;
 
   const SubmitButton({
     super.key,
@@ -1591,64 +1455,103 @@ class SubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: () async {
-          if (_validateForm()) {
-            try {
-              await onSubmit();
-            } catch (e) {
-              if (context.mounted) {
-                _showErrorDialog(context, e.toString());
-              }
-            }
+    return ElevatedButton(
+      onPressed: () async {
+        // Add debug prints to trace execution
+        print("Submit button pressed");
+
+        if (_validateForm()) {
+          print("Form validated successfully");
+          try {
+            // Call onSubmit callback
+            onSubmit();
+          } catch (e) {
+            print("Error during habit submission: $e");
+            _showErrorDialog(context, e.toString());
           }
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+        } else {
+          print("Form validation failed");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please fix the form errors')),
+          );
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          isEdit ? 'Update habit' : 'Create habit',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
+        elevation: 0,
+      ),
+      child: Text(
+        isEdit ? 'Save Changes' : 'Create Habit',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
   bool _validateForm() {
+    // Debug the form validation
+    print("Validating form...");
+
+    // Basic form field validation
     if (!formKey.currentState!.validate()) {
+      print("Form field validation failed");
+      return false;
+    }
+    print("Form field validation passed");
+
+    // Validate name
+    if (controller.nameController.text.isEmpty) {
+      print("Name is required");
+      ScaffoldMessenger.of(formKey.currentContext!).showSnackBar(
+        const SnackBar(content: Text('Habit name is required')),
+      );
       return false;
     }
 
-    // Validate weekly schedule
-    final scheduleError = FormValidators.validateWeeklySchedule(controller.weeklySchedule);
-    if (scheduleError != null) {
-      return false;
+    // Skip weekly schedule validation for negative habits
+    if (controller.nature != HabitNature.negative) {
+      // Validate weekly schedule for non-negative habits
+      final scheduleError =
+          FormValidators.validateWeeklySchedule(controller.weeklySchedule);
+      if (scheduleError != null) {
+        print("Weekly schedule validation failed: $scheduleError");
+        ScaffoldMessenger.of(formKey.currentContext!).showSnackBar(
+          SnackBar(content: Text(scheduleError)),
+        );
+        return false;
+      }
     }
+    print("Weekly schedule validation passed");
 
     // If will is enabled, validate will-related fields
     if (controller.willEnabled) {
-
-      final maxWillError = FormValidators.validateMaxWill(
-          controller.maxWillController.text,
-          isNegative: controller.nature == HabitNature.negative
-      );
-      if (maxWillError != null) {
+      // Validate willPerRep
+      if (controller.willPerRepController.text.isEmpty) {
+        print("Will per rep is required");
+        ScaffoldMessenger.of(formKey.currentContext!).showSnackBar(
+          const SnackBar(content: Text('Will per rep is required')),
+        );
         return false;
       }
 
-
+      // Validate maxWill
+      if (controller.maxWillController.text.isEmpty) {
+        print("Max Will is required");
+        ScaffoldMessenger.of(formKey.currentContext!).showSnackBar(
+          const SnackBar(content: Text('Max Will is required')),
+        );
+        return false;
+      }
     }
 
+    print("All validations passed!");
     return true;
   }
 
@@ -1657,7 +1560,8 @@ class SubmitButton extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Error'),
-        content: Text('Failed to ${isEdit ? 'update' : 'create'} habit: $error'),
+        content:
+            Text('Failed to ${isEdit ? 'update' : 'create'} habit: $error'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1680,9 +1584,15 @@ class FormValidators {
     if (int.tryParse(value) == null) {
       return '$fieldName must be a valid number';
     }
-    
+
+    // Special case for Target Repetitions - allow zero
+    if (fieldName == 'Target Repetitions' || fieldName == 'Target') {
+      if (int.parse(value) < 0) {
+        return 'Target must be greater than or equal to 0';
+      }
+    }
     // Special case for Starting Will - allow zero
-    if (fieldName == 'Starting Will') {
+    else if (fieldName == 'Starting Will') {
       if (int.parse(value) < 0) {
         return 'Starting Will must be greater than or equal to 0';
       }
@@ -1715,7 +1625,8 @@ class FormValidators {
   }
 
   /// Validates will-related input fields
-  static String? validateWillInput(String? value, String fieldName, {bool allowNegative = false}) {
+  static String? validateWillInput(String? value, String fieldName,
+      {bool allowNegative = false}) {
     if (value == null || value.isEmpty) {
       return '$fieldName is required';
     }
@@ -1735,7 +1646,7 @@ class FormValidators {
       if (!allowNegative && number < 0) {
         return '$fieldName cannot be negative';
       }
-      
+
       if (allowNegative && number > 0) {
         return '$fieldName must be negative for negative habits';
       }
@@ -1759,8 +1670,9 @@ class FormValidators {
       return 'Repetitions must be a valid number';
     }
 
-    if (reps < 1) {
-      return 'Repetitions must be at least 1';
+    // Allow 0 as a valid value for repetitions
+    if (reps < 0) {
+      return 'Repetitions must be at least 0';
     }
 
     if (reps > 1000) {
@@ -1785,13 +1697,13 @@ class FormValidators {
       return 'Duration must be at least 1 minute';
     }
 
-    if (minutes > 1440) { // 24 hours
+    if (minutes > 1440) {
+      // 24 hours
       return 'Duration cannot exceed 24 hours (1440 minutes)';
     }
 
     return null;
   }
-
 
   /// Validates max will value
   static String? validateMaxWill(String? value, {required bool isNegative}) {
@@ -1868,7 +1780,8 @@ class FormValidators {
   }
 
   /// Validates will per minute
-  static String? validateWillPerMinute(String? value, {required bool isNegative}) {
+  static String? validateWillPerMinute(String? value,
+      {required bool isNegative}) {
     if (value == null || value.isEmpty) {
       return 'Will per minute is required';
     }
@@ -1922,19 +1835,14 @@ class FormValidators {
       errors['schedule'] = scheduleError;
     }
 
-
-
     // Validate will-related fields if enabled
     if (willEnabled) {
-
       final maxWillError = validateMaxWill(maxWill, isNegative: isNegative);
       if (maxWillError != null) {
         errors['maxWill'] = maxWillError;
       }
-
     }
 
     return errors;
   }
 }
-

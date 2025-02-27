@@ -60,14 +60,12 @@ class WeeklySchedule {
 
 // Class to handle habit logging
 enum LogEventType {
-  click,  // Simple completion event
+  click, // Simple completion event
   timeTracked, // Event with duration
 }
 
-enum FrequencyType {
-  onetime,
-  daily
-}
+enum FrequencyType { onetime, daily }
+
 //table
 // Main UserHabit class
 class UserHabit {
@@ -81,14 +79,12 @@ class UserHabit {
   final DateTime? completedAt;
   final bool isArchived;
   final FrequencyType frequencyType;
-  final String targetUnits;
   int targetReps;
-  int targetRepStep;
   final int? willPerRep;
   int? maxWill = 0;
   int? startingWill = 0;
-  final int repetitionStep;
-  final String repetitionUnitType;
+  final int repStep;
+  final String repUnit;
 
   UserHabit({
     required this.uid,
@@ -104,11 +100,9 @@ class UserHabit {
     required this.createdAt,
     required this.isArchived,
     required this.frequencyType,
-    this.repetitionStep = 1,
-    this.repetitionUnitType = 'reps',
+    this.repStep = 1,
+    this.repUnit = 'reps',
     this.completedAt,
-    this.targetUnits = 'reps',
-    this.targetRepStep = 1,
   });
 
   Map<String, dynamic> toMap() {
@@ -133,13 +127,13 @@ class UserHabit {
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'isArchived': isArchived,
-      'scorePerRep': willPerRep,
+      'willPerRep': willPerRep,
       'targetReps': targetReps,
-      'maxScore': maxWill,
+      'maxWill': maxWill,
       'startingWill': startingWill,
       'frequencyType': frequencyType.name,
-      'repetitionStep': repetitionStep,
-      'repetitionUnitType': repetitionUnitType,
+      'repStep': repStep,
+      'repUnit': repUnit,
     };
   }
 
@@ -194,45 +188,41 @@ class UserHabit {
       id: map['id'] ?? '',
       name: map['name'] ?? '',
       frequencyType: map['frequencyType'] != null
-          ? FrequencyType.values.firstWhere(
-              (e) => e.name == map['frequencyType'],
-          orElse: () {
-            debugPrint('WARNING: Unknown frequencyType "${map['frequencyType']}", defaulting to onetime');
-            return FrequencyType.onetime;
-          }
-      )
+          ? FrequencyType.values
+              .firstWhere((e) => e.name == map['frequencyType'], orElse: () {
+              debugPrint(
+                  'WARNING: Unknown frequencyType "${map['frequencyType']}", defaulting to onetime');
+              return FrequencyType.onetime;
+            })
           : FrequencyType.onetime,
-
       habitType: map['habitType'] != null
-          ? HabitType.values.firstWhere(
-              (e) => e.name == map['habitType'],
-          orElse: () {
-            debugPrint('WARNING: Unknown habitType "${map['habitType']}", defaulting to regular');
-            return HabitType.regular;
-          }
-      )
+          ? HabitType.values.firstWhere((e) => e.name == map['habitType'],
+              orElse: () {
+              debugPrint(
+                  'WARNING: Unknown habitType "${map['habitType']}", defaulting to regular');
+              return HabitType.regular;
+            })
           : HabitType.regular,
       nature: map['nature'] != null
-          ? HabitNature.values.firstWhere(
-              (e) => e.name == map['nature'],
-          orElse: () {
-            debugPrint('WARNING: Unknown nature "${map['nature']}", defaulting to positive');
-            return HabitNature.positive;
-          }
-      )
+          ? HabitNature.values.firstWhere((e) => e.name == map['nature'],
+              orElse: () {
+              debugPrint(
+                  'WARNING: Unknown nature "${map['nature']}", defaulting to positive');
+              return HabitNature.positive;
+            })
           : HabitNature.positive,
-      weeklySchedule: WeeklySchedule.fromMap(map['weeklySchedule']),
+      weeklySchedule: map['weeklySchedule'] != null 
+          ? WeeklySchedule.fromMap(map['weeklySchedule'])
+          : const WeeklySchedule(),
       createdAt: parsedCreatedAt,
       completedAt: parsedCompletedAt,
       isArchived: map['isArchived'] ?? false,
-      willPerRep: map['scorePerRep'],
+      willPerRep: map['willPerRep'] ?? map['scorePerRep'],
       targetReps: map['targetReps'] ?? 1,
-      targetUnits: map['targetUnits'] ?? 'reps',
-      targetRepStep: map['targetRepStep'] ?? 1,
-      maxWill: map['maxScore'],
+      maxWill: map['maxWill'] ?? map['maxScore'],
       startingWill: map['startingWill'],
-      repetitionStep: map['repetitionStep'] ?? 1,
-      repetitionUnitType: map['repetitionUnitType'] ?? 'reps',
+      repStep: map['repStep'] ?? map['repetitionStep'] ?? 1,
+      repUnit: map['repUnit'] ?? map['repetitionUnitType'] ?? 'reps',
     );
   }
 }

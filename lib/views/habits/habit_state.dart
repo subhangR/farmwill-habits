@@ -2,17 +2,21 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get_it/get_it.dart';
+import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/goals.dart';
 import '../../models/habit_data.dart';
 import '../../models/habits.dart';
 import '../../repositories/habits_repository.dart';
 
-final habitStateProvider = ChangeNotifierProvider<UserHabitState>((ref) => UserHabitState());
+final habitStateProvider =
+    ChangeNotifierProvider<UserHabitState>((ref) => UserHabitState());
 // Enhanced UserHabitState with streak calculation methods
 
 class UserHabitState extends ChangeNotifier {
   final HabitsRepository _habitsRepository = GetIt.I<HabitsRepository>();
+  final String _userId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   List<UserHabit> _habits = [];
   Map<String, UserMonthLog> _monthLogs = {};
@@ -30,6 +34,7 @@ class UserHabitState extends ChangeNotifier {
   String? get error => _error;
   int get willPoints => _willPoints;
   bool get isLoading => _isLoading;
+  String get userId => _userId;
 
   // Update selected date and refresh data
   void updateSelectedDate(DateTime date) {
@@ -66,6 +71,7 @@ class UserHabitState extends ChangeNotifier {
     // Return the day log for the specified day
     return monthLog.days[dayKey];
   }
+
   Future<void> loadHabitsAndData(String userId, [DateTime? date]) async {
     try {
       _isLoading = true;
@@ -96,8 +102,11 @@ class UserHabitState extends ChangeNotifier {
 
       // Calculate total will points from habit data
       int totalWill = 0;
+      Map<String, HabitData> currentHabitsData = {};
+
       if (currentDayLog != null) {
-        currentDayLog.habits.forEach((_, habitData) {
+        currentHabitsData = currentDayLog.habits;
+        currentDayLog.habits.forEach((habitId, habitData) {
           totalWill += habitData.willObtained;
         });
       }
@@ -105,7 +114,7 @@ class UserHabitState extends ChangeNotifier {
       // Update state
       _habits = habits;
       _monthLogs = monthLogsMap;
-      _habitsData = currentDayLog != null ? currentDayLog.habits : {};
+      _habitsData = currentHabitsData;
       _willPoints = totalWill;
       _goals = userGoals;
       _isLoading = false;
@@ -117,8 +126,10 @@ class UserHabitState extends ChangeNotifier {
       notifyListeners();
     }
   }
+
   // Helper method to get day log from a map of month logs
-  UserDayLog? _getDayLogFromMap(DateTime date, Map<String, UserMonthLog> monthLogsMap) {
+  UserDayLog? _getDayLogFromMap(
+      DateTime date, Map<String, UserMonthLog> monthLogsMap) {
     final monthKey = '${date.year}-${date.month.toString().padLeft(2, '0')}';
     final dayKey = date.day.toString().padLeft(2, '0');
 
@@ -168,7 +179,8 @@ class UserHabitState extends ChangeNotifier {
   }
 
   // Create or update habit data for current selected date
-  Future<void> updateHabitData(String userId, String habitId, HabitData habitData) async {
+  Future<void> updateHabitData(
+      String userId, String habitId, HabitData habitData) async {
     try {
       await _habitsRepository.updateHabitData(
         habitId: habitId,
@@ -230,7 +242,6 @@ class UserHabitState extends ChangeNotifier {
         // Check if this day has progress for the specified habit
         if (dayLog.habits.containsKey(habitId) &&
             _isHabitProgressValid(dayLog.habits[habitId]!)) {
-
           final currentDate = _dateFromMonthAndDayKey(monthKey, dayKey);
           if (currentDate != null) {
             // If this is continuing a streak (today or yesterday was active)
@@ -318,20 +329,29 @@ class UserHabitState extends ChangeNotifier {
 
     final weekday = date.weekday;
     switch (weekday) {
-      case 1: return habit.weeklySchedule!.monday;
-      case 2: return habit.weeklySchedule!.tuesday;
-      case 3: return habit.weeklySchedule!.wednesday;
-      case 4: return habit.weeklySchedule!.thursday;
-      case 5: return habit.weeklySchedule!.friday;
-      case 6: return habit.weeklySchedule!.saturday;
-      case 7: return habit.weeklySchedule!.sunday;
-      default: return false;
+      case 1:
+        return habit.weeklySchedule!.monday;
+      case 2:
+        return habit.weeklySchedule!.tuesday;
+      case 3:
+        return habit.weeklySchedule!.wednesday;
+      case 4:
+        return habit.weeklySchedule!.thursday;
+      case 5:
+        return habit.weeklySchedule!.friday;
+      case 6:
+        return habit.weeklySchedule!.saturday;
+      case 7:
+        return habit.weeklySchedule!.sunday;
+      default:
+        return false;
     }
   }
 
   // Get streak considering habit schedule
   int getScheduleAwareStreak(String habitId, {DateTime? fromDate}) {
-    final habit = _habits.firstWhere((h) => h.id == habitId, orElse: () => _habits.first);
+    final habit =
+        _habits.firstWhere((h) => h.id == habitId, orElse: () => _habits.first);
     final date = fromDate ?? _selectedDate;
     int streak = 0;
     DateTime currentDate = date;
@@ -418,7 +438,8 @@ class UserHabitState extends ChangeNotifier {
   }
 
 // Add habit to goal
-  Future<void> addHabitToGoal(String userId, String goalId, String habitId) async {
+  Future<void> addHabitToGoal(
+      String userId, String goalId, String habitId) async {
     try {
       await _habitsRepository.addHabitToGoal(userId, goalId, habitId);
       await loadGoals(userId);
@@ -429,7 +450,8 @@ class UserHabitState extends ChangeNotifier {
   }
 
 // Remove habit from goal
-  Future<void> removeHabitFromGoal(String userId, String goalId, String habitId) async {
+  Future<void> removeHabitFromGoal(
+      String userId, String goalId, String habitId) async {
     try {
       await _habitsRepository.removeHabitFromGoal(userId, goalId, habitId);
       await loadGoals(userId);
@@ -441,13 +463,157 @@ class UserHabitState extends ChangeNotifier {
 
   int calculateTotalWill() {
     int totalWill = 0;
-    
+
     // Sum up will from all habit data
     habitsData.forEach((habitId, habitData) {
       totalWill += habitData.willObtained;
     });
-    
+
     return totalWill;
   }
 
+  // Method to increment habit reps
+  Future<void> incrementHabitReps(String habitId, int stepValue) async {
+    if (_userId.isEmpty) return;
+
+    try {
+      // Get current habit data
+      final currentData = _habitsData[habitId];
+      final habit = _habits.firstWhere((h) => h.id == habitId);
+
+      // Calculate new reps
+      final currentReps = currentData?.reps ?? 0;
+      final newReps = currentReps + stepValue;
+
+      // Calculate will points
+      int willObtained = 0;
+      int willChange = 0;
+
+      if (habit.willPerRep != null) {
+        willChange = habit.willPerRep! * stepValue;
+
+        // Calculate total will obtained
+        final maxWill = habit.maxWill ?? 0;
+        final startingWill = habit.startingWill ?? 0;
+
+        willObtained = newReps * (habit.willPerRep ?? 0);
+
+        // Apply max will cap if set
+        if (maxWill > 0 && willObtained > maxWill) {
+          willObtained = maxWill;
+        }
+
+        // Apply starting will if set
+        if (startingWill > 0) {
+          willObtained += startingWill;
+        }
+      }
+
+      // Update will points
+      if (willChange != 0) {
+        updateWillPoints(willChange);
+      }
+
+      // Create updated habit data
+      final habitData = HabitData(
+        reps: newReps,
+        duration: currentData?.duration ?? 0,
+        willObtained: willObtained,
+        targetReps: habit.targetReps,
+        willPerRep: habit.willPerRep ?? 0,
+        maxWill: habit.maxWill ?? 0,
+        startingWill: habit.startingWill ?? 0,
+        isCompleted: newReps >= habit.targetReps,
+      );
+
+      // Update in repository
+      await _habitsRepository.updateHabitData(
+        habitId: habitId,
+        userId: _userId,
+        habitData: habitData,
+        date: _selectedDate,
+      );
+
+      // Reload data to refresh state
+      await loadHabitsAndData(_userId, _selectedDate);
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to increment habit: $e';
+      notifyListeners();
+    }
+  }
+
+  // Method to decrement habit reps
+  Future<void> decrementHabitReps(String habitId, int stepValue) async {
+    if (_userId.isEmpty) return;
+
+    try {
+      // Get current habit data
+      final currentData = _habitsData[habitId];
+      final habit = _habits.firstWhere((h) => h.id == habitId);
+
+      // Calculate new reps (ensure it doesn't go below 0)
+      final currentReps = currentData?.reps ?? 0;
+      final newReps = max(0, currentReps - stepValue);
+
+      // If no change, return early
+      if (newReps == currentReps) return;
+
+      // Calculate will points
+      int willObtained = 0;
+      int willChange = 0;
+
+      if (habit.willPerRep != null) {
+        willChange = -habit.willPerRep! * stepValue;
+
+        // Calculate total will obtained
+        final maxWill = habit.maxWill ?? 0;
+        final startingWill = habit.startingWill ?? 0;
+
+        willObtained = newReps * (habit.willPerRep ?? 0);
+
+        // Apply max will cap if set
+        if (maxWill > 0 && willObtained > maxWill) {
+          willObtained = maxWill;
+        }
+
+        // Apply starting will if set
+        if (startingWill > 0) {
+          willObtained += startingWill;
+        }
+      }
+
+      // Update will points
+      if (willChange != 0) {
+        updateWillPoints(willChange);
+      }
+
+      // Create updated habit data
+      final habitData = HabitData(
+        reps: newReps,
+        duration: currentData?.duration ?? 0,
+        willObtained: willObtained,
+        targetReps: habit.targetReps,
+        willPerRep: habit.willPerRep ?? 0,
+        maxWill: habit.maxWill ?? 0,
+        startingWill: habit.startingWill ?? 0,
+        isCompleted: newReps >= habit.targetReps,
+      );
+
+      // Update in repository
+      await _habitsRepository.updateHabitData(
+        habitId: habitId,
+        userId: _userId,
+        habitData: habitData,
+        date: _selectedDate,
+      );
+
+      // Reload data to refresh state
+      await loadHabitsAndData(_userId, _selectedDate);
+      notifyListeners();
+    } catch (e) {
+      _error = 'Failed to decrement habit: $e';
+      notifyListeners();
+    }
+  }
 }

@@ -345,6 +345,7 @@ class _GoalScreenState extends ConsumerState<GoalScreen> with SingleTickerProvid
                             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                             child: HabitCard(
                               userHabit: habit,
+                              selectedDate: DateTime.now(),
                             ),
                           );
                         },

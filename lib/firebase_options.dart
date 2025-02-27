@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -28,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -49,20 +40,54 @@ class DefaultFirebaseOptions {
     }
   }
 
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyC-8K2RwJq6wOMkC7d0fB-So-SNNL6hv8w',
+    appId: '1:698238504542:web:5eb6acfa6545a002c22ecf',
+    messagingSenderId: '698238504542',
+    projectId: 'farmwill-habits',
+    authDomain: 'farmwill-habits.firebaseapp.com',
+    databaseURL: 'https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'farmwill-habits.firebasestorage.app',
+    measurementId: 'G-5959TBZ9PH',
+  );
+
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDVO9fK12e08HCgQnox1I_T2LcYHDNRxak',
     appId: '1:698238504542:android:d4272a72e72d1ee1c22ecf',
     messagingSenderId: '698238504542',
     projectId: 'farmwill-habits',
+    databaseURL: 'https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'farmwill-habits.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD5hTtMw-vYEiDXQyFEZqdr3zf1ICpHFsM',
-    appId: '1:698238504542:ios:fd7af9af5541ec8bc22ecf',
+    appId: '1:698238504542:ios:34abf6e1edb4a8f7c22ecf',
     messagingSenderId: '698238504542',
     projectId: 'farmwill-habits',
+    databaseURL: 'https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app',
     storageBucket: 'farmwill-habits.firebasestorage.app',
     iosBundleId: 'com.farmwill.habits',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyD5hTtMw-vYEiDXQyFEZqdr3zf1ICpHFsM',
+    appId: '1:698238504542:ios:34abf6e1edb4a8f7c22ecf',
+    messagingSenderId: '698238504542',
+    projectId: 'farmwill-habits',
+    databaseURL: 'https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'farmwill-habits.firebasestorage.app',
+    iosBundleId: 'com.farmwill.habits',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyC-8K2RwJq6wOMkC7d0fB-So-SNNL6hv8w',
+    appId: '1:698238504542:web:31d5cdcdfefc0b3cc22ecf',
+    messagingSenderId: '698238504542',
+    projectId: 'farmwill-habits',
+    authDomain: 'farmwill-habits.firebaseapp.com',
+    databaseURL: 'https://farmwill-habits-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'farmwill-habits.firebasestorage.app',
+    measurementId: 'G-LFRBNFN71Z',
   );
 }
