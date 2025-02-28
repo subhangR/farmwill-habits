@@ -21,10 +21,7 @@ import 'habit_state.dart';
 class HabitDetailsPage extends ConsumerStatefulWidget {
   final UserHabit userHabit;
 
-  const HabitDetailsPage({
-    Key? key,
-    required this.userHabit
-  }) : super(key: key);
+  const HabitDetailsPage({Key? key, required this.userHabit}) : super(key: key);
 
   static const backgroundColor = Color(0xFF1A1A1A);
   static const cardColor = Color(0xFF2D2D2D);
@@ -50,6 +47,14 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
   int _currentStreak = 0;
   int _bestStreak = 0;
 
+  // Add new state variables for lifetime stats
+  int _lifetimeReps = 0;
+  int _lifetimeWill = 0;
+
+  // Add state variables for today's stats
+  int _todayReps = 0;
+  int _todayWill = 0;
+
   @override
   void initState() {
     super.initState();
@@ -61,21 +66,50 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
       _isLoading = true;
     });
 
-    // Get the habit state provider
     final habitState = ref.read(habitStateProvider);
-
-    // Initialize with current habit data
-    _habit = widget.userHabit;
-
-    // Load month logs and day data for selected date
     await habitState.loadHabitsAndData(_userId, _selectedDate);
 
-    // Calculate stats
-    _calculateStats();
+    // Calculate lifetime stats
+    _calculateLifetimeStats();
+
+    // Calculate today's stats
+    _calculateTodayStats();
 
     setState(() {
       _isLoading = false;
     });
+  }
+
+  void _calculateLifetimeStats() {
+    final habitState = ref.read(habitStateProvider);
+    final monthLogs = habitState.monthLogs;
+
+    _lifetimeReps = 0;
+    _lifetimeWill = 0;
+
+    for (var monthLog in monthLogs.values) {
+      for (var dayLog in monthLog.days.values) {
+        if (dayLog.habits.containsKey(widget.userHabit.id)) {
+          final habitData = dayLog.habits[widget.userHabit.id]!;
+          _lifetimeReps += habitData.reps;
+          _lifetimeWill += habitData.willObtained;
+        }
+      }
+    }
+  }
+
+  void _calculateTodayStats() {
+    final habitState = ref.read(habitStateProvider);
+    final todayLog = habitState.getDayLog(_selectedDate);
+
+    if (todayLog?.habits.containsKey(widget.userHabit.id) ?? false) {
+      final habitData = todayLog!.habits[widget.userHabit.id]!;
+      _todayReps = habitData.reps;
+      _todayWill = habitData.willObtained;
+    } else {
+      _todayReps = 0;
+      _todayWill = 0;
+    }
   }
 
   void _calculateStats() {
@@ -122,8 +156,9 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     }
 
     // Calculate completion rate
-    _completionRate = totalDaysScheduled > 0 ?
-    (totalDaysCompleted / totalDaysScheduled) * 100 : 0.0;
+    _completionRate = totalDaysScheduled > 0
+        ? (totalDaysCompleted / totalDaysScheduled) * 100
+        : 0.0;
 
     // Calculate streaks
     _calculateStreaks();
@@ -139,7 +174,8 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     bool streakBroken = false;
 
     while (!streakBroken) {
-      final monthKey = '${current.year}-${current.month.toString().padLeft(2, '0')}';
+      final monthKey =
+          '${current.year}-${current.month.toString().padLeft(2, '0')}';
       final dayKey = current.day.toString().padLeft(2, '0');
 
       final monthLog = monthLogs[monthKey];
@@ -204,14 +240,22 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
 
     final weekday = date.weekday;
     switch (weekday) {
-      case 1: return widget.userHabit.weeklySchedule!.monday;
-      case 2: return widget.userHabit.weeklySchedule!.tuesday;
-      case 3: return widget.userHabit.weeklySchedule!.wednesday;
-      case 4: return widget.userHabit.weeklySchedule!.thursday;
-      case 5: return widget.userHabit.weeklySchedule!.friday;
-      case 6: return widget.userHabit.weeklySchedule!.saturday;
-      case 7: return widget.userHabit.weeklySchedule!.sunday;
-      default: return false;
+      case 1:
+        return widget.userHabit.weeklySchedule!.monday;
+      case 2:
+        return widget.userHabit.weeklySchedule!.tuesday;
+      case 3:
+        return widget.userHabit.weeklySchedule!.wednesday;
+      case 4:
+        return widget.userHabit.weeklySchedule!.thursday;
+      case 5:
+        return widget.userHabit.weeklySchedule!.friday;
+      case 6:
+        return widget.userHabit.weeklySchedule!.saturday;
+      case 7:
+        return widget.userHabit.weeklySchedule!.sunday;
+      default:
+        return false;
     }
   }
 
@@ -272,21 +316,22 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
 
     try {
       print("Confirming deletion of habit: ${widget.userHabit.id}");
-      
+
       // Use the habitState provider to delete the habit
       final habitState = ref.read(habitStateProvider);
       await habitState.deleteHabit(_userId, widget.userHabit.id);
-      
+
       print("Habit deleted successfully through provider");
-      
+
       // Return to previous screen after successful deletion
       if (mounted) {
         print("Navigating back after deletion");
-        Navigator.pop(context, true); // Pass true to indicate successful deletion
+        Navigator.pop(
+            context, true); // Pass true to indicate successful deletion
       }
     } catch (e) {
       print("Error in _confirmDelete: $e");
-      
+
       setState(() {
         _isLoading = false;
       });
@@ -343,16 +388,6 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch habit state for changes
-    final habitState = ref.watch(habitStateProvider);
-
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: HabitDetailsPage.backgroundColor,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
       backgroundColor: HabitDetailsPage.backgroundColor,
       appBar: AppBar(
@@ -365,9 +400,7 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         title: Text(
           _habit?.name ?? widget.userHabit.name,
           style: const TextStyle(
-              color: HabitDetailsPage.textColor,
-              fontWeight: FontWeight.w600
-          ),
+              color: HabitDetailsPage.textColor, fontWeight: FontWeight.w600),
         ),
         actions: [
           // Edit (pencil) icon
@@ -389,137 +422,168 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CalendarWidget(
-              initialDate: _selectedDate,
-              onDateSelected: _onDateSelected,
-            ),
+            _buildLifetimeSection(),
             const SizedBox(height: 32),
-            _buildStreakCards(),
+            _buildTodaySection(),
             const SizedBox(height: 32),
-            // Show either repetitions or duration stats based on goal type
-            _buildTotalRepetitions(),
+            _buildWeekSection(),
             const SizedBox(height: 32),
-            _buildCompletionRate(),
+            _buildLast7DaysSection(),
             const SizedBox(height: 32),
-            // Show weekly stats based on goal type
-            _buildRepsWeeklyStats(),
+            _buildMonthSection(),
             const SizedBox(height: 32),
-            _buildMonthlyStats(),
-            const SizedBox(height: 32),
-            _buildFrequency(),
-            const SizedBox(height: 32),
-            _buildHabitCreatedOn(),
+            _buildDetailsSection(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMonthlyStats() {
+  Widget _buildLifetimeSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Lifetime Stats',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildStreakCards(),
+        const SizedBox(height: 16),
+        _buildSection(
+          'Total Repetitions',
+          _lifetimeReps.toString(),
+          'Lifetime achievement',
+        ),
+        const SizedBox(height: 16),
+        _buildSection(
+          'Total Will Obtained',
+          _lifetimeWill.toString(),
+          'Lifetime will points',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTodaySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Today',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSection(
+          'Progress',
+          '$_todayReps/${widget.userHabit.targetReps}',
+          'Today\'s repetitions',
+        ),
+        const SizedBox(height: 16),
+        _buildSection(
+          'Will Obtained',
+          _todayWill.toString(),
+          'Today\'s will points',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeekSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'This Week',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        CalendarWidget(
+          initialDate: _selectedDate,
+          onDateSelected: _onDateSelected,
+        ),
+        const SizedBox(height: 16),
+        _buildWeeklyStatsTable(),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyStatsTable() {
+    final weekStats = _calculateWeekStats();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: HabitDetailsPage.cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildWeeklyTableRow('Day', 'Reps', 'Will', isHeader: true),
+          const Divider(color: HabitDetailsPage.secondaryTextColor),
+          ...weekStats.entries.map((entry) => _buildWeeklyTableRow(
+                entry.key,
+                '${entry.value.reps}/${widget.userHabit.targetReps}',
+                entry.value.will.toString(),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyTableRow(String day, String reps, String will,
+      {bool isHeader = false}) {
+    final textStyle = TextStyle(
+      color:
+          isHeader ? HabitDetailsPage.accentColor : HabitDetailsPage.textColor,
+      fontWeight: isHeader ? FontWeight.bold : FontWeight.normal,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: Text(day, style: textStyle)),
+          Expanded(child: Text(reps, style: textStyle)),
+          Expanded(child: Text(will, style: textStyle)),
+        ],
+      ),
+    );
+  }
+
+  Map<String, WeeklyStats> _calculateWeekStats() {
     final habitState = ref.read(habitStateProvider);
-    final selectedMonthLog = _getSelectedMonthLog();
-    final dailyCompletions = <DayCompletion>[];
+    final stats = <String, WeeklyStats>{};
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-    if (selectedMonthLog != null) {
-      // Get days in month
-      final daysInMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 0).day;
-
-      for (int day = 1; day <= daysInMonth; day++) {
-        final dayKey = day.toString().padLeft(2, '0');
-        final dayLog = selectedMonthLog.days[dayKey];
-        final date = DateTime(_selectedDate.year, _selectedDate.month, day);
-
-        double completion = 0.0;
-        if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
-          final habitData = dayLog.habits[widget.userHabit.id]!;
-
-
-        }
-
-        dailyCompletions.add(DayCompletion(
-          date: date,
-          completion: completion,
-        ));
-      }
-    }
-
-    final monthlyStats = MonthlyStatsValue(
-      month: _selectedDate,
-      dailyCompletions: dailyCompletions,
-    );
-
-    final monthName = DateFormat('MMMM yyyy').format(_selectedDate);
-
-    return MonthlyCalendarStats(
-      title: '$monthName ',
-      stats: monthlyStats,
-      height: 400,
-      baseColor: HabitDetailsPage.accentColor,
-      backgroundColor: HabitDetailsPage.cardColor,
-      textColor: HabitDetailsPage.textColor,
-    );
-  }
-
-  UserMonthLog? _getSelectedMonthLog() {
-    final habitState = ref.read(habitStateProvider);
-    final monthKey = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}';
-    return habitState.monthLogs[monthKey];
-  }
-
-  Widget _buildRepsWeeklyStats() {
-    // Calculate weekly stats from provider data
-    final weekStats = _calculateWeeklyStats(isReps: true);
-
-    return RadarWeeklyStatsWidget(
-      title: 'Weekly Repetitions',
-      stats: weekStats,
-      height: 200,
-      backgroundColor: HabitDetailsPage.cardColor,
-      textColor: HabitDetailsPage.textColor,
-    );
-  }
-
-  Widget _buildDurationWeeklyStats() {
-    // Calculate weekly stats from provider data
-    final weekStats = _calculateWeeklyStats(isReps: false);
-
-    return LineScatterWeeklyStats(
-      title: 'Weekly Duration (mins)',
-      stats: weekStats,
-      height: 200,
-      backgroundColor: HabitDetailsPage.cardColor,
-      textColor: HabitDetailsPage.textColor,
-    );
-  }
-
-  WeeklyStatsValue _calculateWeeklyStats({required bool isReps}) {
-    final habitState = ref.read(habitStateProvider);
+    // Get start of week
     final now = DateTime.now();
-
-    // Find the start of current week (Monday)
-    final currentWeekday = now.weekday;
-    final startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
-
-    final dailyStats = <DayStats>[];
-    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
 
     for (int i = 0; i < 7; i++) {
       final date = startOfWeek.add(Duration(days: i));
       final dayLog = habitState.getDayLog(date);
+      final habitData = dayLog?.habits[widget.userHabit.id];
 
-      int value = 0;
-      if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
-        final habitData = dayLog.habits[widget.userHabit.id]!;
-        value = isReps ? habitData.reps : habitData.duration;
-      }
-
-      dailyStats.add(DayStats(
-        day: dayNames[i],
-        value: value.toDouble(),
-      ));
+      stats[weekDays[i]] = WeeklyStats(
+        reps: habitData?.reps ?? 0,
+        will: habitData?.willObtained ?? 0,
+      );
     }
 
-    return WeeklyStatsValue(dailyStats: dailyStats);
+    return stats;
   }
 
   Widget _buildStreakCards() {
@@ -528,7 +592,10 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         Expanded(
           child: _buildGlassCard(
             'Current Streak',
-            ref.read(habitStateProvider).getCurrentStreak(widget.userHabit.id).toString(),
+            ref
+                .read(habitStateProvider)
+                .getCurrentStreak(widget.userHabit.id)
+                .toString(),
             Icons.local_fire_department,
             gradient: const LinearGradient(
               colors: [Color(0xFF7166F9), Color(0xFF9C56F6)],
@@ -541,7 +608,10 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
         Expanded(
           child: _buildGlassCard(
             'Best Streak',
-            ref.read(habitStateProvider).getBestStreak(widget.userHabit.id).toString(),
+            ref
+                .read(habitStateProvider)
+                .getBestStreak(widget.userHabit.id)
+                .toString(),
             Icons.emoji_events,
             gradient: const LinearGradient(
               colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
@@ -554,7 +624,8 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     );
   }
 
-  Widget _buildGlassCard(String title, String value, IconData icon, {required Gradient gradient}) {
+  Widget _buildGlassCard(String title, String value, IconData icon,
+      {required Gradient gradient}) {
     return Container(
       decoration: BoxDecoration(
         gradient: gradient,
@@ -600,101 +671,14 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
     );
   }
 
-  Widget _buildTotalRepetitions() {
-    final createdDate = widget.userHabit.createdAt;
-    final formattedDate = DateFormat('MMMM d, yyyy').format(createdDate);
-    final goalValue = widget.userHabit.targetReps ?? 0;
-
-    return _buildSection(
-      'Total Repetitions',
-      _totalRepetitions.toString(),
-      'Target: $goalValue reps | Since $formattedDate',
-    );
-  }
-
-
-
-  Widget _buildCompletionRate() {
-    String message;
-    if (_completionRate >= 80) {
-      message = 'Excellent work!';
-    } else if (_completionRate >= 50) {
-      message = 'Good progress!';
-    } else {
-      message = 'Keep going, you can do it!';
-    }
-
-    return _buildSection(
-      'Completion Rate',
-      '${_completionRate.toStringAsFixed(1)}%',
-      message,
-    );
-  }
-
-  Widget _buildFrequency() {
-    final weeklySchedule = widget.userHabit.weeklySchedule;
-    String frequencyText = 'Daily';
-
-    if (weeklySchedule != null) {
-      int daysCount = 0;
-      if (weeklySchedule.monday) daysCount++;
-      if (weeklySchedule.tuesday) daysCount++;
-      if (weeklySchedule.wednesday) daysCount++;
-      if (weeklySchedule.thursday) daysCount++;
-      if (weeklySchedule.friday) daysCount++;
-      if (weeklySchedule.saturday) daysCount++;
-      if (weeklySchedule.sunday) daysCount++;
-
-      if (daysCount < 7) {
-        frequencyText = '${daysCount}x / week';
-      }
-    }
-
-    return _buildSection(
-      'Frequency',
-      frequencyText,
-      getFrequencyDetailText(),
-    );
-  }
-
-  String getFrequencyDetailText() {
-    final weeklySchedule = widget.userHabit.weeklySchedule;
-    if (weeklySchedule == null) return 'Every day';
-
-    List<String> days = [];
-    if (weeklySchedule.monday) days.add('Mon');
-    if (weeklySchedule.tuesday) days.add('Tue');
-    if (weeklySchedule.wednesday) days.add('Wed');
-    if (weeklySchedule.thursday) days.add('Thu');
-    if (weeklySchedule.friday) days.add('Fri');
-    if (weeklySchedule.saturday) days.add('Sat');
-    if (weeklySchedule.sunday) days.add('Sun');
-
-    if (days.length == 7) return 'Every day';
-    if (days.isEmpty) return 'No days scheduled';
-    return days.join(', ');
-  }
-
-  Widget _buildHabitCreatedOn() {
-    final createdDate = widget.userHabit.createdAt;
-    final formattedDate = DateFormat('MMMM d, yyyy').format(createdDate);
-    final natureType = widget.userHabit.nature == HabitNature.positive ? 'Positive' : 'Negative';
-
-    return _buildSection(
-      'Habit created on',
-      formattedDate,
-      'Type: $natureType',
-    );
-  }
-
   Widget _buildSection(String title, String value, String subtitle) {
     // Apply color based on goal type
     Color sectionColor;
     if (widget.userHabit.nature == HabitNature.positive) {
-      sectionColor =
-          const Color(0xFF4CAF50).withOpacity(0.2);
+      sectionColor = const Color(0xFF4CAF50).withOpacity(0.2);
     } else {
-      sectionColor = const Color(0xFFFF5722).withOpacity(0.2);  // Orange tint for negative reps
+      sectionColor = const Color(0xFFFF5722)
+          .withOpacity(0.2); // Orange tint for negative reps
     }
 
     return Container(
@@ -747,4 +731,218 @@ class _HabitDetailsPageState extends ConsumerState<HabitDetailsPage> {
       ),
     );
   }
+
+  Widget _buildLast7DaysSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Last 7 Days',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildLast7DaysTable(),
+      ],
+    );
+  }
+
+  Widget _buildLast7DaysTable() {
+    final stats = _calculateLast7DaysStats();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: HabitDetailsPage.cardColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildWeeklyTableRow('Date', 'Reps', 'Will', isHeader: true),
+          const Divider(color: HabitDetailsPage.secondaryTextColor),
+          ...stats.entries.map((entry) => _buildWeeklyTableRow(
+                DateFormat('MMM d').format(entry.key),
+                '${entry.value.reps}/${widget.userHabit.targetReps}',
+                entry.value.will.toString(),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Map<DateTime, WeeklyStats> _calculateLast7DaysStats() {
+    final habitState = ref.read(habitStateProvider);
+    final stats = <DateTime, WeeklyStats>{};
+
+    // Get last 7 days including today
+    final now = DateTime.now();
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: i));
+      final dayLog = habitState.getDayLog(date);
+      final habitData = dayLog?.habits[widget.userHabit.id];
+
+      stats[date] = WeeklyStats(
+        reps: habitData?.reps ?? 0,
+        will: habitData?.willObtained ?? 0,
+      );
+    }
+
+    return Map.fromEntries(
+        stats.entries.toList()..sort((a, b) => b.key.compareTo(a.key)));
+  }
+
+  Widget _buildMonthSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Monthly Overview',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildMonthlyStats(),
+      ],
+    );
+  }
+
+  Widget _buildMonthlyStats() {
+    final habitState = ref.read(habitStateProvider);
+    final selectedMonthLog = _getSelectedMonthLog();
+    final dailyCompletions = <DayCompletion>[];
+
+    if (selectedMonthLog != null) {
+      final daysInMonth =
+          DateTime(_selectedDate.year, _selectedDate.month + 1, 0).day;
+
+      for (int day = 1; day <= daysInMonth; day++) {
+        final dayKey = day.toString().padLeft(2, '0');
+        final dayLog = selectedMonthLog.days[dayKey];
+        final date = DateTime(_selectedDate.year, _selectedDate.month, day);
+
+        double completion = 0.0;
+        if (dayLog != null && dayLog.habits.containsKey(widget.userHabit.id)) {
+          final habitData = dayLog.habits[widget.userHabit.id]!;
+          completion = habitData.reps / widget.userHabit.targetReps;
+        }
+
+        dailyCompletions.add(DayCompletion(
+          date: date,
+          completion: completion,
+        ));
+      }
+    }
+
+    final monthlyStats = MonthlyStatsValue(
+      month: _selectedDate,
+      dailyCompletions: dailyCompletions,
+    );
+
+    return MonthlyCalendarStats(
+      title: DateFormat('MMMM yyyy').format(_selectedDate),
+      stats: monthlyStats,
+      height: 400,
+      baseColor: HabitDetailsPage.accentColor,
+      backgroundColor: HabitDetailsPage.cardColor,
+      textColor: HabitDetailsPage.textColor,
+    );
+  }
+
+  Widget _buildDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Details',
+          style: TextStyle(
+            color: HabitDetailsPage.textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildFrequency(),
+        const SizedBox(height: 16),
+        _buildHabitCreatedOn(),
+      ],
+    );
+  }
+
+  UserMonthLog? _getSelectedMonthLog() {
+    final habitState = ref.read(habitStateProvider);
+    final monthKey =
+        '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}';
+    return habitState.monthLogs[monthKey];
+  }
+
+  Widget _buildFrequency() {
+    final weeklySchedule = widget.userHabit.weeklySchedule;
+    String frequencyText = 'Daily';
+
+    if (weeklySchedule != null) {
+      int daysCount = 0;
+      if (weeklySchedule.monday) daysCount++;
+      if (weeklySchedule.tuesday) daysCount++;
+      if (weeklySchedule.wednesday) daysCount++;
+      if (weeklySchedule.thursday) daysCount++;
+      if (weeklySchedule.friday) daysCount++;
+      if (weeklySchedule.saturday) daysCount++;
+      if (weeklySchedule.sunday) daysCount++;
+
+      if (daysCount < 7) {
+        frequencyText = '$daysCount times per week';
+      }
+    }
+
+    return _buildSection(
+      'Frequency',
+      frequencyText,
+      _getFrequencyDetailText(),
+    );
+  }
+
+  String _getFrequencyDetailText() {
+    final weeklySchedule = widget.userHabit.weeklySchedule;
+    if (weeklySchedule == null) return 'Every day';
+
+    List<String> days = [];
+    if (weeklySchedule.monday) days.add('Mon');
+    if (weeklySchedule.tuesday) days.add('Tue');
+    if (weeklySchedule.wednesday) days.add('Wed');
+    if (weeklySchedule.thursday) days.add('Thu');
+    if (weeklySchedule.friday) days.add('Fri');
+    if (weeklySchedule.saturday) days.add('Sat');
+    if (weeklySchedule.sunday) days.add('Sun');
+
+    if (days.length == 7) return 'Every day';
+    if (days.isEmpty) return 'No days scheduled';
+    return days.join(', ');
+  }
+
+  Widget _buildHabitCreatedOn() {
+    final createdDate = widget.userHabit.createdAt;
+    final formattedDate = DateFormat('MMMM d, yyyy').format(createdDate);
+    final natureType = widget.userHabit.nature == HabitNature.positive
+        ? 'Positive'
+        : 'Negative';
+
+    return _buildSection(
+      'Created on',
+      formattedDate,
+      'Type: $natureType',
+    );
+  }
+}
+
+class WeeklyStats {
+  final int reps;
+  final int will;
+
+  WeeklyStats({required this.reps, required this.will});
 }

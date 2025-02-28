@@ -49,12 +49,12 @@ class _HabitCardState extends ConsumerState<HabitCard>
     _currentMinutes = 0;
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 500),
     );
     _progressAnimation = Tween<double>(begin: 0, end: 0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: Curves.easeInOut,
+        curve: Curves.easeOutQuart,
       ),
     );
     _loadCurrentDataFromState();
@@ -132,10 +132,11 @@ class _HabitCardState extends ConsumerState<HabitCard>
       end: progress,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOutQuart,
     ));
 
-    _animationController.forward(from: 0.0);
+    _animationController.reset();
+    _animationController.forward();
   }
 
   void _handleTap() async {
@@ -232,8 +233,6 @@ class _HabitCardState extends ConsumerState<HabitCard>
   Widget build(BuildContext context) {
     // Listen to the habitStateProvider to rebuild when it changes
     final habitState = ref.watch(habitStateProvider);
-
-    // Debug print to verify reps
 
     // Make sure we have the latest data
     if (_isInitialized &&
@@ -375,181 +374,193 @@ class _HabitCardState extends ConsumerState<HabitCard>
                     ),
                   ),
 
-                // Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Habit name at the top
-                      Text(
-                        widget.userHabit.name,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black54,
-                              blurRadius: 3,
-                              offset: const Offset(1, 1),
+                // Content - Use LayoutBuilder to make content responsive
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Calculate available height for content
+                    final availableHeight = constraints.maxHeight;
+                    // Adjust font sizes based on available width
+                    final isNarrow = constraints.maxWidth < 160;
+
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(8, 8, 8, 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Habit name at the top - with constrained height
+                          SizedBox(
+                            height: availableHeight * 0.2,
+                            child: Center(
+                              child: Text(
+                                widget.userHabit.name,
+                                style: TextStyle(
+                                  fontSize: isNarrow ? 14 : 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      blurRadius: 3,
+                                      offset: const Offset(1, 1),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
-                          ],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
+                          ),
 
-                      const Spacer(),
+                          // Reps in the center of the card with unit beside it
+                          SizedBox(
+                            height: availableHeight * 0.35,
+                            child: Center(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Current reps in large font
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        '$_currentReps',
+                                        style: TextStyle(
+                                          fontSize: isNarrow ? 30 : 36,
+                                          fontWeight: FontWeight.bold,
+                                          color: lightColor,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black54,
+                                              blurRadius: 4,
+                                              offset: const Offset(1, 1),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
 
-                      // Reps in the center of the card with unit beside it
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: LayoutBuilder(builder: (context, constraints) {
-                          // Adjust font size based on available width and text length
-                          final unitLength = widget.userHabit.repUnit.length;
-                          final repsLength = _currentReps.toString().length;
-                          final totalLength = repsLength + unitLength;
+                                  const SizedBox(width: 2),
 
-                          // Calculate appropriate font sizes
-                          final repsFontSize = totalLength > 8 ? 36.0 : 42.0;
-                          final unitFontSize = totalLength > 8 ? 16.0 : 18.0;
+                                  // Unit beside the reps
+                                  Flexible(
+                                    child: Text(
+                                      widget.userHabit.repUnit,
+                                      style: TextStyle(
+                                        fontSize: isNarrow ? 14 : 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: lightColor.withOpacity(0.8),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
 
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Current reps in large font
-                              Flexible(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    '$_currentReps',
+                          // Bottom section with fixed height allocation
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Target info if available
+                                if (widget.userHabit.targetReps > 0)
+                                  Text(
+                                    'of ${widget.userHabit.targetReps}',
                                     style: TextStyle(
-                                      fontSize: repsFontSize,
-                                      fontWeight: FontWeight.bold,
-                                      color: lightColor,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black54,
-                                          blurRadius: 4,
-                                          offset: const Offset(1, 1),
+                                      fontSize: isNarrow ? 12 : 14,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+
+                                // Progress indicator
+                                if (widget.userHabit.targetReps > 0)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: SizedBox(
+                                      width: constraints.maxWidth * 0.7,
+                                      child: AnimatedBuilder(
+                                        animation: _progressAnimation,
+                                        builder: (context, child) {
+                                          return LinearProgressIndicator(
+                                            value: _progressAnimation.value,
+                                            backgroundColor:
+                                                Colors.grey.withOpacity(0.3),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              isCompleted
+                                                  ? baseColor.withOpacity(0.8)
+                                                  : lightColor,
+                                            ),
+                                            minHeight: 4,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+
+                                // Will gained display - more compact to avoid overflow
+                                if (willPoints != 0)
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: isNarrow ? 6 : 8,
+                                        vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.amber.withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.bolt,
+                                          color: Colors.amber,
+                                          size: isNarrow ? 12 : 14,
+                                        ),
+                                        SizedBox(width: 2),
+                                        Text(
+                                          willPoints > 0
+                                              ? '+$willPoints'
+                                              : '$willPoints',
+                                          style: TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: isNarrow ? 11 : 13,
+                                          ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              ),
 
-                              const SizedBox(width: 4),
-
-                              // Unit beside the reps
-                              Flexible(
-                                child: Text(
-                                  widget.userHabit.repUnit,
-                                  style: TextStyle(
-                                    fontSize: unitFontSize,
-                                    fontWeight: FontWeight.w500,
-                                    color: lightColor.withOpacity(0.8),
-                                    overflow: TextOverflow.ellipsis,
+                                // Percentage complete at the bottom
+                                if (widget.userHabit.targetReps > 0)
+                                  Text(
+                                    widget.userHabit.nature ==
+                                            HabitNature.positive
+                                        ? '$progressPercent% complete'
+                                        : '${100 - progressPercent}% remaining',
+                                    style: TextStyle(
+                                      fontSize: isNarrow ? 10 : 12,
+                                      color: Colors.white70,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-
-                      // Target info if available
-                      if (widget.userHabit.targetReps > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            'of ${widget.userHabit.targetReps}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ),
-
-                      // Progress indicator
-                      if (widget.userHabit.targetReps > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 8),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 120,
-                              child: LinearProgressIndicator(
-                                value:
-                                    _currentReps / widget.userHabit.targetReps,
-                                backgroundColor: Colors.grey.withOpacity(0.3),
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  isCompleted
-                                      ? baseColor.withOpacity(0.8)
-                                      : lightColor,
-                                ),
-                                minHeight: 6,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      const Spacer(),
-
-                      // Will gained display - more compact to avoid overflow
-                      if (willPoints != 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.amber.withOpacity(0.5),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.bolt,
-                                color: Colors.amber,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                willPoints > 0 ? '+$willPoints' : '$willPoints',
-                                style: const TextStyle(
-                                  color: Colors.amber,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Percentage complete at the bottom
-                      if (widget.userHabit.targetReps > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            widget.userHabit.nature == HabitNature.positive
-                                ? '$progressPercent% complete'
-                                : '${100 - progressPercent}% remaining',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),

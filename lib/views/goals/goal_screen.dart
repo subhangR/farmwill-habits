@@ -1,3 +1,5 @@
+import 'package:farmwill_habits/models/habit_data.dart';
+import 'package:farmwill_habits/views/habits/create_habit_page_v2.dart';
 import 'package:farmwill_habits/views/habits/widgets/habit_card.dart';
 import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
@@ -118,7 +120,7 @@ class _GoalScreenState extends ConsumerState<GoalScreen>
             icon: const Icon(Icons.playlist_add, color: Colors.white),
             tooltip: 'Manage Habits',
             onPressed: () {
-              _showAddHabitDialog(_goal);
+              _createHabitAndAddToGoal(_goal);
             },
           ),
           // Add delete goal button
@@ -131,9 +133,24 @@ class _GoalScreenState extends ConsumerState<GoalScreen>
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: GestureDetector(
               onTap: () {
+                // Get habits associated with this goal
+                final goalHabits = userHabitState.habits
+                    .where((habit) => _goal.habitId.contains(habit.id))
+                    .toList();
+
+                // Get habit data for these habits
+                final goalHabitsData = Map<String, HabitData>.fromEntries(
+                    userHabitState.habitsData.entries
+                        .where((entry) => _goal.habitId.contains(entry.key)));
+
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (context) => const WillHistoryPage()),
+                    builder: (context) => WillHistoryPage(
+                      habits: goalHabits,
+                      habitsData: goalHabitsData,
+                      title: '${_goal.name} - Will History',
+                    ),
+                  ),
                 );
               },
               child: WillWidget(
@@ -918,5 +935,61 @@ class _GoalScreenState extends ConsumerState<GoalScreen>
     }
 
     return totalWill;
+  }
+  
+  void _createHabitAndAddToGoal(UserGoal goal) async {
+    try {
+      // Navigate to create habit page and wait for result
+      final UserHabit? newHabit = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const EditHabitPageV2(),
+        ),
+      );
+
+      // If we got a new habit back
+      if (newHabit != null) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        final habitState = ref.read(habitStateProvider);
+
+        // Add habit to goal
+        await _habitsRepository.addHabitToGoal(
+          _userId,
+          goal.id,
+          newHabit.id,
+        );
+
+        // Reload data to refresh state
+        await _loadHabitsData();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added ${newHabit.name} to ${goal.name}'),
+              backgroundColor: Colors.green.shade800,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add habit to goal: $e'),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }

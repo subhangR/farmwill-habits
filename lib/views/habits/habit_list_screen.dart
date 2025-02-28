@@ -243,7 +243,12 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (context) => const WillHistoryPage()),
+                    builder: (context) => WillHistoryPage(
+                      habits: userHabitState.habits,
+                      habitsData: userHabitState.habitsData,
+                      title: 'Overall Will History',
+                    ),
+                  ),
                 );
               },
               child: WillWidget(willPoints: willPoints),

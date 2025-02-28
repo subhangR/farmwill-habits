@@ -577,7 +577,7 @@ class _FrequencySectionState extends State<FrequencySection> {
               child: Row(
                 children: [
                   _FrequencyTypeButton(
-                    title: 'One Time',
+                    title: 'Today',
                     isSelected: widget.controller.frequencyType ==
                         FrequencyType.onetime,
                     onTap: () => widget.controller
@@ -594,7 +594,8 @@ class _FrequencySectionState extends State<FrequencySection> {
               ),
             ),
             const SizedBox(height: 16),
-            if (widget.controller.frequencyType == FrequencyType.daily) ...[
+            if (widget.controller.frequencyType == FrequencyType.daily &&
+                widget.controller.nature == HabitNature.positive) ...[
               const Text(
                 'Schedule',
                 style: TextStyle(
@@ -793,8 +794,8 @@ class TargetSection extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Target',
+             Text(
+              controller._nature == HabitNature.positive ? 'Target' : 'Threshold',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -906,9 +907,9 @@ class TargetSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Target Repetitions',
-          style: TextStyle(
+        Text(
+          controller._nature == HabitNature.positive ? 'Target' : 'Threshold',
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -939,7 +940,23 @@ class TargetSection extends StatelessWidget {
                   ),
                 ),
                 keyboardType: TextInputType.number,
-                validator: (value) => FormValidators.validateRepetitions(value),
+                validator: (value) {
+                  // First validate that it's a valid repetition value
+                  final baseValidation =
+                      FormValidators.validateRepetitions(value);
+                  if (baseValidation != null) {
+                    return baseValidation;
+                  }
+
+                  // Then check if it's a multiple of the step
+                  final repetitions = int.tryParse(value ?? '');
+                  if (repetitions != null && controller.repetitionStep > 1) {
+                    if (repetitions % controller.repetitionStep != 0) {
+                      return 'Target must be a multiple of ${controller.repetitionStep}';
+                    }
+                  }
+                  return null;
+                },
                 onChanged: (text) {
                   final newValue = int.tryParse(text);
                   if (newValue != null && newValue >= 0) {

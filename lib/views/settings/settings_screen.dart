@@ -8,13 +8,16 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1A1A1A),
       appBar: AppBar(
-        title: const Text('Settings'),
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Settings', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: ListView(
         children: [
           const SizedBox(height: 20),
-          
+
           // Account section
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -27,31 +30,36 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          
+
           // Logout button
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout'),
+            title: const Text('Logout', style: TextStyle(color: Colors.white)),
             onTap: () async {
               // Show confirmation dialog
               final shouldLogout = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
+                  backgroundColor: const Color(0xFF2A2A2A),
+                  title: const Text('Logout',
+                      style: TextStyle(color: Colors.white)),
+                  content: const Text('Are you sure you want to logout?',
+                      style: TextStyle(color: Colors.white70)),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
+                      child: const Text('Cancel',
+                          style: TextStyle(color: Colors.grey)),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text('Logout'),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
                     ),
                   ],
                 ),
               );
-              
+
               if (shouldLogout == true) {
                 await ref.read(authProvider.notifier).signOut();
                 // Navigate to login screen after logout
@@ -61,39 +69,10 @@ class SettingsScreen extends ConsumerWidget {
               }
             },
           ),
-          
-          const Divider(),
-          
-          // App preferences section - can be expanded later
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              'App Preferences',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          
-          // Theme toggle - placeholder for now
-          ListTile(
-            leading: const Icon(Icons.dark_mode),
-            title: const Text('Dark Mode'),
-            trailing: Switch(
-              value: Theme.of(context).brightness == Brightness.dark,
-              onChanged: (_) {
-                // Theme switching functionality can be added later
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Theme switching coming soon')),
-                );
-              },
-            ),
-          ),
-          
+
+          const Divider(color: Colors.grey),
+
           // About section
-          const Divider(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
@@ -105,14 +84,14 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          
+
           const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('App Version'),
-            subtitle: Text('1.0.0'),
+            leading: Icon(Icons.info_outline, color: Colors.white70),
+            title: Text('App Version', style: TextStyle(color: Colors.white)),
+            subtitle: Text('1.0.0', style: TextStyle(color: Colors.white70)),
           ),
         ],
       ),
     );
   }
-} 
+}

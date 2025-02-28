@@ -1,3 +1,6 @@
+import 'dart:math' as Math;
+
+import 'package:farmwill_habits/models/habit_data.dart';
 import 'package:farmwill_habits/views/habits/widgets/will_widget.dart';
 import 'package:farmwill_habits/views/habits/will_history_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,6 +15,7 @@ import '../../repositories/habits_repository.dart';
 import '../habits/habit_state.dart';
 import 'edit_goal.dart';
 import 'goal_screen.dart';
+import '../habits/widgets/calendar_widget.dart';
 
 class GoalsListPage extends ConsumerStatefulWidget {
   const GoalsListPage({super.key});
@@ -27,6 +31,8 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
   bool _isLoading = true;
   List<UserGoal> _goals = [];
   late AnimationController _animationController;
+  bool _showCalendar = false;
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
@@ -51,7 +57,7 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
       });
 
       final userHabitState = ref.read(habitStateProvider);
-      await userHabitState.loadHabitsAndData(_userId);
+      await userHabitState.loadHabitsAndData(_userId, _selectedDate);
       await userHabitState.loadGoals(_userId);
 
       setState(() {
@@ -66,6 +72,21 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
       });
       print('Error loading goals: $e');
     }
+  }
+
+  void _toggleCalendar() {
+    setState(() {
+      _showCalendar = !_showCalendar;
+    });
+  }
+
+  void _onDateSelected(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+    });
+
+    final userHabitState = ref.read(habitStateProvider);
+    userHabitState.updateSelectedDate(date);
   }
 
   @override
@@ -92,6 +113,12 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
           title: const Text('Goals'),
           automaticallyImplyLeading: false,
           actions: [
+            IconButton(
+              icon: const Icon(Icons.calendar_month,
+                  color: Colors.white, size: 24),
+              onPressed: _toggleCalendar,
+            ),
+            const SizedBox(width: 8),
             Consumer(
               builder: (context, ref, child) {
                 final habitState = ref.watch(habitStateProvider);
@@ -103,7 +130,12 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (context) => const WillHistoryPage()),
+                          builder: (context) => WillHistoryPage(
+                            habits: userHabitState.habits,
+                            habitsData: userHabitState.habitsData,
+                            title: 'Overall Will History',
+                          ),
+                        ),
                       );
                     },
                     child: WillWidget(willPoints: totalWill),
@@ -127,7 +159,26 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
           onRefresh: _loadGoals,
           color: Colors.blue.shade700,
           backgroundColor: Colors.grey.shade900,
-          child: _buildGoalsGrid(userHabitState),
+          child: Column(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                height: _showCalendar ? null : 0,
+                child: _showCalendar
+                    ? Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: CalendarWidget(
+                          initialDate: _selectedDate,
+                          onDateSelected: _onDateSelected,
+                        ),
+                      )
+                    : null,
+              ),
+              Expanded(
+                child: _buildGoalsGrid(userHabitState),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -270,9 +321,13 @@ class _GoalsListScreenState extends ConsumerState<GoalsListPage>
       if (habit.id.isEmpty || habit.targetReps <= 0) continue;
 
       final habitData = userHabitState.habitsData[habitId];
-      if (habitData != null) {
+
+      if (habit.nature == HabitNature.positive) {
         totalTargetSteps += (habit.targetReps / habit.repStep).toInt();
-        totalCompletedSteps += (habitData.reps / habit.repStep).toInt();
+        totalCompletedSteps += Math.min(
+                ((habitData?.reps ?? 0) / habit.repStep),
+                habit.targetReps / habit.repStep)
+            .toInt();
       }
     }
 
