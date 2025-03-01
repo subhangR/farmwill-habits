@@ -17,8 +17,8 @@ import 'habit_details_page.dart';
 // Define sort options
 enum HabitSortOption {
   name,
-  willPerRep,
-  willGained,
+  willPerStep,
+  maxWill,
 }
 
 class HabitListScreen extends ConsumerStatefulWidget {
@@ -36,6 +36,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
   bool _isLoading = true;
   HabitSortOption _currentSortOption = HabitSortOption.name;
   bool _sortAscending = true;
+  bool _showSortButton = true;
 
   @override
   void initState() {
@@ -103,23 +104,21 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
             : b.name.compareTo(a.name));
         break;
 
-      case HabitSortOption.willPerRep:
+      case HabitSortOption.willPerStep:
         sortedHabits.sort((a, b) {
-          final aWillPerRep = a.willPerRep ?? 0;
-          final bWillPerRep = b.willPerRep ?? 0;
+          final aWill = a.willPerRep ?? 0;
+          final bWill = b.willPerRep ?? 0;
           return _sortAscending
-              ? aWillPerRep.compareTo(bWillPerRep)
-              : bWillPerRep.compareTo(aWillPerRep);
+              ? aWill.compareTo(bWill)
+              : bWill.compareTo(aWill);
         });
         break;
 
-      case HabitSortOption.willGained:
+      case HabitSortOption.maxWill:
         sortedHabits.sort((a, b) {
-          final aWillGained = habitsData[a.id]?.willObtained ?? 0;
-          final bWillGained = habitsData[b.id]?.willObtained ?? 0;
-          return _sortAscending
-              ? aWillGained.compareTo(bWillGained)
-              : bWillGained.compareTo(aWillGained);
+          final aMax = (a.willPerRep ?? 0) * (a.targetReps ?? 1);
+          final bMax = (b.willPerRep ?? 0) * (b.targetReps ?? 1);
+          return _sortAscending ? aMax.compareTo(bMax) : bMax.compareTo(aMax);
         });
         break;
     }
@@ -135,73 +134,76 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 16),
-                child: Text(
-                  'Sort Habits By',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Sort By',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _sortAscending
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          color: Colors.blue,
+                        ),
+                        onPressed: () {
+                          setState(() => _sortAscending = !_sortAscending);
+                          this.setState(() {});
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              _buildSortOption(
-                title: 'Name',
-                icon: Icons.sort_by_alpha,
-                sortOption: HabitSortOption.name,
-              ),
-              _buildSortOption(
-                title: 'Will Per Rep',
-                icon: Icons.bolt,
-                sortOption: HabitSortOption.willPerRep,
-              ),
-              _buildSortOption(
-                title: 'Will Gained',
-                icon: Icons.trending_up,
-                sortOption: HabitSortOption.willGained,
-              ),
-              const Divider(color: Colors.grey),
-              ListTile(
-                leading: Icon(
-                  _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                  color: Colors.blue,
+                const Divider(height: 1, color: Colors.grey),
+                _buildSortTile(
+                  'Name',
+                  Icons.sort_by_alpha,
+                  HabitSortOption.name,
+                  setState,
                 ),
-                title: Text(
-                  _sortAscending ? 'Ascending' : 'Descending',
-                  style: const TextStyle(color: Colors.white),
+                _buildSortTile(
+                  'Will/Step',
+                  Icons.bolt,
+                  HabitSortOption.willPerStep,
+                  setState,
                 ),
-                onTap: () {
-                  setState(() {
-                    _sortAscending = !_sortAscending;
-                  });
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
+                _buildSortTile(
+                  'Max Will',
+                  Icons.star,
+                  HabitSortOption.maxWill,
+                  setState,
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildSortOption({
-    required String title,
-    required IconData icon,
-    required HabitSortOption sortOption,
-  }) {
-    final isSelected = _currentSortOption == sortOption;
+  Widget _buildSortTile(
+    String title,
+    IconData icon,
+    HabitSortOption option,
+    StateSetter setState,
+  ) {
+    final isSelected = _currentSortOption == option;
 
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected ? Colors.blue : Colors.grey,
-      ),
+      leading: Icon(icon, color: isSelected ? Colors.blue : Colors.grey),
       title: Text(
         title,
         style: TextStyle(
@@ -211,9 +213,8 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
       ),
       trailing: isSelected ? const Icon(Icons.check, color: Colors.blue) : null,
       onTap: () {
-        setState(() {
-          _currentSortOption = sortOption;
-        });
+        setState(() => _currentSortOption = option);
+        this.setState(() {});
         Navigator.pop(context);
       },
     );
@@ -288,86 +289,71 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadHabitsAndData,
-        child: Column(
+        child: Stack(
           children: [
-            // Calendar Section
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: _showCalendar ? null : 0,
-              child: _showCalendar
-                  ? Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: CalendarWidget(
-                        initialDate: _selectedDate,
-                        onDateSelected: _onDateSelected,
-                      ),
-                    )
-                  : null,
+            Column(
+              children: [
+                // Calendar Section
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: _showCalendar ? null : 0,
+                  child: _showCalendar
+                      ? Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: CalendarWidget(
+                            initialDate: _selectedDate,
+                            onDateSelected: _onDateSelected,
+                          ),
+                        )
+                      : null,
+                ),
+
+                // Habits List Section with top padding for the sort button
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (scrollInfo) {
+                      if (scrollInfo is ScrollUpdateNotification) {
+                        setState(() {
+                          _showSortButton = scrollInfo.metrics.pixels <= 10;
+                        });
+                      }
+                      return true;
+                    },
+                    child: _buildHabitsList(userHabitState, sortedHabits),
+                  ),
+                ),
+              ],
             ),
 
-            // Sort button and indicator
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Sort button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _showSortOptions,
-                      borderRadius: BorderRadius.circular(50),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade700,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              spreadRadius: 1,
-                              blurRadius: 3,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getSortIcon(),
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _getSortName(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              _sortAscending
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                      ),
+            // Sort button overlay
+            Positioned(
+              top: 0,
+              right: 0,
+              left: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _showSortButton ? 1.0 : 0.0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF1A1A1A),
+                        const Color(0xFF1A1A1A).withOpacity(0.9),
+                        const Color(0xFF1A1A1A).withOpacity(0),
+                      ],
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _buildSortButton(),
+                    ],
+                  ),
+                ),
               ),
-            ),
-
-            // Habits List Section
-            Expanded(
-              child: _buildHabitsList(userHabitState, sortedHabits),
             ),
           ],
         ),
@@ -431,7 +417,7 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.fromLTRB(16.0, 72.0, 16.0, 16.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 0.8,
@@ -447,7 +433,6 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
           habitData: habitData,
           selectedDate: _selectedDate,
         );
-      
       },
     );
   }
@@ -457,10 +442,10 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     switch (_currentSortOption) {
       case HabitSortOption.name:
         return Icons.sort_by_alpha;
-      case HabitSortOption.willPerRep:
+      case HabitSortOption.willPerStep:
         return Icons.bolt;
-      case HabitSortOption.willGained:
-        return Icons.trending_up;
+      case HabitSortOption.maxWill:
+        return Icons.star;
       default:
         return Icons.sort;
     }
@@ -471,13 +456,41 @@ class _HabitListScreenState extends ConsumerState<HabitListScreen> {
     switch (_currentSortOption) {
       case HabitSortOption.name:
         return 'Name';
-      case HabitSortOption.willPerRep:
-        return 'Will Per Rep';
-      case HabitSortOption.willGained:
-        return 'Will Gained';
+      case HabitSortOption.willPerStep:
+        return 'Will/Step';
+      case HabitSortOption.maxWill:
+        return 'Max Will';
       default:
         return 'Default';
     }
+  }
+
+  Widget _buildSortButton() {
+    return Container(
+      margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blue.shade700,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        icon: Icon(_getSortIcon(), size: 18),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_getSortName()),
+            const SizedBox(width: 4),
+            Icon(
+              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+              size: 14,
+            ),
+          ],
+        ),
+        onPressed: _showSortOptions,
+      ),
+    );
   }
 
   void _navigateToHabitDetails(UserHabit habit) {

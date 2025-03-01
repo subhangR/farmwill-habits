@@ -936,7 +936,7 @@ class _GoalScreenState extends ConsumerState<GoalScreen>
 
     return totalWill;
   }
-  
+
   void _createHabitAndAddToGoal(UserGoal goal) async {
     try {
       // Navigate to create habit page and wait for result

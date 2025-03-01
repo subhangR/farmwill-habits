@@ -16,6 +16,7 @@ import 'firebase_options.dart';
 import 'init.dart';
 import 'models/habits.dart';
 import 'models/user.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,9 +56,7 @@ class MyApp extends StatelessWidget {
         Locale('ar'), // Arabic
         // Add other locales as needed
       ],
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: AppTheme.darkTheme,
       home: AuthWrapper(),
     );
   }

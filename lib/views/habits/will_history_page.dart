@@ -11,6 +11,12 @@ import 'widgets/calendar_widget.dart';
 import 'widgets/weekly_stats_widgets/line_scatterd_weekly_stats.dart';
 import 'widgets/weekly_stats_widgets/weekly_stats_widget.dart';
 
+enum SortOption {
+  willGained,
+  willFarmable,
+  willPerRep,
+}
+
 class WillHistoryPage extends ConsumerStatefulWidget {
   final List<UserHabit> habits;
   final Map<String, HabitData> habitsData;
@@ -48,6 +54,11 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
   int _totalWillGained = 0;
   int _totalWillLost = 0;
   Map<String, int> _habitWillBreakdown = {};
+
+  int _visibleWeeklyItems = 10;
+  int _visiblePerformanceItems = 10;
+
+  SortOption _currentSortOption = SortOption.willGained;
 
   @override
   void initState() {
@@ -115,6 +126,7 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
               child: Column(
                 children: [
                   _buildTodaySection(),
+                  _buildTodayBreakdown(),
                   _buildWeeklyBreakdown(),
                   _buildLast7DaysTable(),
                   _buildHabitsList(),
@@ -127,9 +139,12 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
   Widget _buildTodaySection() {
     int totalGained = 0;
     int totalLost = 0;
+    int maxFarmableWill = 0;
 
     for (var habit in widget.habits) {
       final habitData = widget.habitsData[habit.id];
+
+      // Calculate current will obtained
       if (habitData != null) {
         if (habit.nature == HabitNature.positive) {
           totalGained += habitData.willObtained;
@@ -137,9 +152,25 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
           totalLost += habitData.willObtained;
         }
       }
+
+      if (habit.nature == HabitNature.positive) {
+        if (habit.maxWill != null && habit.maxWill! > 0) {
+          maxFarmableWill += habit.maxWill!;
+        } else if (habit.targetReps != null && habit.willPerRep != null) {
+          maxFarmableWill += habit.targetReps! * habit.willPerRep!;
+        }
+      }
+
+      // Add starting will if present
+      if (habit.startingWill != null) {
+        maxFarmableWill += habit.startingWill!;
+      }
     }
 
-    final netWill = totalGained - totalLost;
+    final netWill = totalGained + totalLost;
+    final willProgress = maxFarmableWill > 0
+        ? ((totalGained / maxFarmableWill) * 100).toStringAsFixed(1)
+        : '0.0';
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -182,6 +213,21 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
             netWill,
             netWill >= 0 ? Colors.blue : Colors.red,
             netWill >= 0 ? Icons.trending_up : Icons.trending_down,
+          ),
+          const SizedBox(height: 16),
+          _buildWillCard(
+            'Max Farmable Will',
+            maxFarmableWill,
+            WillHistoryPage.accentColor,
+            Icons.agriculture,
+          ),
+          const SizedBox(height: 16),
+          _buildProgressCard(
+            'Progress',
+            '$netWill / $maxFarmableWill',
+            '$willProgress%',
+            WillHistoryPage.accentColor,
+            Icons.bar_chart,
           ),
         ],
       ),
@@ -227,6 +273,210 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
     );
   }
 
+  Widget _buildProgressCard(String title, String fraction, String percentage,
+      Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: WillHistoryPage.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                fraction,
+                style: const TextStyle(
+                  color: WillHistoryPage.textColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                percentage,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodayBreakdown() {
+    var habits = List<UserHabit>.from(widget.habits);
+
+    // Sort based on selected option
+    habits.sort((a, b) {
+      switch (_currentSortOption) {
+        case SortOption.willGained:
+          final aWill = widget.habitsData[a.id]?.willObtained ?? 0;
+          final bWill = widget.habitsData[b.id]?.willObtained ?? 0;
+          return bWill.compareTo(aWill);
+
+        case SortOption.willFarmable:
+          final aMax = _calculateMaxWill(a);
+          final bMax = _calculateMaxWill(b);
+          return bMax.compareTo(aMax);
+
+        case SortOption.willPerRep:
+          final aPerRep = a.willPerRep ?? 0;
+          final bPerRep = b.willPerRep ?? 0;
+          return bPerRep.compareTo(aPerRep);
+      }
+    });
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Today Breakdown',
+                style: TextStyle(
+                  color: WillHistoryPage.textColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              PopupMenuButton<SortOption>(
+                icon: const Icon(Icons.sort, color: WillHistoryPage.textColor),
+                onSelected: (SortOption option) {
+                  setState(() {
+                    _currentSortOption = option;
+                  });
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem(
+                    value: SortOption.willGained,
+                    child: Text('Sort by Will Gained'),
+                  ),
+                  const PopupMenuItem(
+                    value: SortOption.willFarmable,
+                    child: Text('Sort by Max Will'),
+                  ),
+                  const PopupMenuItem(
+                    value: SortOption.willPerRep,
+                    child: Text('Sort by Will/Rep'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: WillHistoryPage.cardColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: habits.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final habit = habits[index];
+                final willGained =
+                    widget.habitsData[habit.id]?.willObtained ?? 0;
+                final maxWill = _calculateMaxWill(habit);
+
+                return ListTile(
+                  title: Text(
+                    habit.name,
+                    style: const TextStyle(color: WillHistoryPage.textColor),
+                  ),
+                  subtitle: Row(
+                    children: [
+                      Icon(
+                        habit.nature == HabitNature.positive
+                            ? Icons.add_circle
+                            : Icons.remove_circle,
+                        color: habit.nature == HabitNature.positive
+                            ? Colors.green
+                            : Colors.red,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${habit.willPerRep ?? 0}/rep',
+                        style: const TextStyle(
+                          color: WillHistoryPage.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '$willGained / $maxWill',
+                        style: TextStyle(
+                          color: willGained >= 0 ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${((willGained / maxWill) * 100).toStringAsFixed(1)}%',
+                        style: const TextStyle(
+                          color: WillHistoryPage.secondaryTextColor,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _calculateMaxWill(UserHabit habit) {
+    if (habit.nature != HabitNature.positive) return 0;
+
+    int maxWill = 0;
+    if (habit.maxWill != null && habit.maxWill! > 0) {
+      maxWill = habit.maxWill!;
+    } else if (habit.targetReps != null && habit.willPerRep != null) {
+      maxWill = habit.targetReps! * habit.willPerRep!;
+    }
+
+    if (habit.startingWill != null) {
+      maxWill += habit.startingWill!;
+    }
+
+    return maxWill;
+  }
+
   Widget _buildWeeklyBreakdown() {
     // Sort habits by will gained
     final sortedHabits = List<UserHabit>.from(widget.habits)
@@ -235,6 +485,8 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
         final bWill = widget.habitsData[b.id]?.willObtained ?? 0;
         return bWill.compareTo(aWill);
       });
+
+    final hasMoreItems = sortedHabits.length > _visibleWeeklyItems;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -255,29 +507,48 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
               color: WillHistoryPage.cardColor,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: sortedHabits.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final habit = sortedHabits[index];
-                final willGained =
-                    widget.habitsData[habit.id]?.willObtained ?? 0;
-                return ListTile(
-                  title: Text(
-                    habit.name,
-                    style: const TextStyle(color: WillHistoryPage.textColor),
-                  ),
-                  trailing: Text(
-                    willGained.toString(),
-                    style: TextStyle(
-                      color: willGained >= 0 ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.bold,
+            child: Column(
+              children: [
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: sortedHabits.length.clamp(0, _visibleWeeklyItems),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final habit = sortedHabits[index];
+                    final willGained =
+                        widget.habitsData[habit.id]?.willObtained ?? 0;
+                    return ListTile(
+                      title: Text(
+                        habit.name,
+                        style:
+                            const TextStyle(color: WillHistoryPage.textColor),
+                      ),
+                      trailing: Text(
+                        willGained.toString(),
+                        style: TextStyle(
+                          color: willGained >= 0 ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                if (hasMoreItems)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _visibleWeeklyItems += 10;
+                      });
+                    },
+                    child: Text(
+                      'Show More (${sortedHabits.length - _visibleWeeklyItems} remaining)',
+                      style:
+                          const TextStyle(color: WillHistoryPage.accentColor),
                     ),
                   ),
-                );
-              },
+              ],
             ),
           ),
         ],
@@ -374,13 +645,14 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
   }
 
   Widget _buildHabitsList() {
-    // Sort habits by total will gained
     final sortedHabits = List<UserHabit>.from(widget.habits)
       ..sort((a, b) {
         final aWill = widget.habitsData[a.id]?.willObtained ?? 0;
         final bWill = widget.habitsData[b.id]?.willObtained ?? 0;
         return bWill.compareTo(aWill);
       });
+
+    final hasMoreItems = sortedHabits.length > _visiblePerformanceItems;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -399,8 +671,23 @@ class _WillHistoryPageState extends ConsumerState<WillHistoryPage>
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: sortedHabits.length,
+            itemCount: sortedHabits.length.clamp(0, _visiblePerformanceItems) +
+                (hasMoreItems ? 1 : 0),
             itemBuilder: (context, index) {
+              if (index == _visiblePerformanceItems) {
+                return TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _visiblePerformanceItems += 10;
+                    });
+                  },
+                  child: Text(
+                    'Show More (${sortedHabits.length - _visiblePerformanceItems} remaining)',
+                    style: const TextStyle(color: WillHistoryPage.accentColor),
+                  ),
+                );
+              }
+
               final habit = sortedHabits[index];
               final willGained = widget.habitsData[habit.id]?.willObtained ?? 0;
 

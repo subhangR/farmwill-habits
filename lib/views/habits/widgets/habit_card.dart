@@ -318,36 +318,44 @@ class _HabitCardState extends ConsumerState<HabitCard>
                     ),
                   ),
 
-                // Decrease button at the top right
+                // Decrease button at the top left (moved from right)
                 if (hasStarted)
                   Positioned(
                     top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.black38,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white24,
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                    left: 8, // Changed from right to left
+                    child: Material(
+                      // Wrapped in Material for proper tap handling
+                      color: Colors.transparent,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.black38,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white24,
+                            width: 1,
                           ),
-                        ],
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.remove, color: Colors.white),
-                        onPressed: _handleRemove,
-                        iconSize: 16,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Decrease reps',
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: InkWell(
+                          // Changed from IconButton to InkWell for better touch feedback
+                          onTap: _handleRemove,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Icon(
+                            Icons.remove,
+                            color: isPositive
+                                ? Colors.red
+                                : Colors.green, // Inverted colors
+                            size: 16,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -615,7 +623,7 @@ class _HabitCardState extends ConsumerState<HabitCard>
     // Get the habit state
     final habitState = ref.read(habitStateProvider);
 
-    // Launch repository update in the background without awaiting
+    // Launch repository update
     _saveHabitDataAsync(habitData, habitState, previousReps);
   }
 

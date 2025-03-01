@@ -27,7 +27,8 @@ class _SignupPageState extends State<SignupPage> {
 
     try {
       // Check if the user already exists in Firestore
-      DocumentSnapshot userDoc = await _firestore.collection('users').doc(_email).get();
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(_email).get();
 
       if (userDoc.exists) {
         _showErrorDialog('User already exists');
@@ -35,10 +36,8 @@ class _SignupPageState extends State<SignupPage> {
       }
 
       // Create a new user in Firebase Auth
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
-          email: _email,
-          password: _password
-      );
+      UserCredential userCredential = await _auth
+          .createUserWithEmailAndPassword(email: _email, password: _password);
 
       // Create a new document for the user in Firestore
       await _firestore.collection('users').doc(_email).set({
@@ -98,91 +97,132 @@ class _SignupPageState extends State<SignupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 50),
-                  Text(
-                    'Create Account',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 50),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: const Icon(Icons.email),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty || !value.contains('@')) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) {
-                      _email = value!.trim();
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    obscureText: _obscurePassword,
-                    validator: (value) {
-                      if (value == null || value.isEmpty || value.length < 6) {
-                        return 'Password must be at least 6 characters long';
-                      }
-                      return null;
-                    },
-                    onSaved: (value) {
-                      _password = value!;
-                    },
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: _signup,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text('Sign Up'),
-                  ),
-                  const SizedBox(height: 20),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Already have an account? Sign in'),
-                  ),
-                ],
-              ),
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF1A1A1A),
+              Colors.purple[900]!.withOpacity(0.5),
+              const Color(0xFF1A1A1A),
+            ],
           ),
+        ),
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 50),
+                          Icon(
+                            Icons.person_add_outlined,
+                            size: 80,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 30),
+                          Text(
+                            'Create Account',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Start your journey with us',
+                            style:
+                                Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                      color: Colors.grey[400],
+                                    ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 50),
+                          TextFormField(
+                            decoration: InputDecoration(
+                              labelText: 'Email',
+                              prefixIcon: const Icon(Icons.email),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null ||
+                                  value.isEmpty ||
+                                  !value.contains('@')) {
+                                return 'Please enter a valid email address';
+                              }
+                              return null;
+                            },
+                            onSaved: (value) {
+                              _email = value!.trim();
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          TextFormField(
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: const Icon(Icons.lock),
+                              suffixIcon: IconButton(
+                                icon: Icon(_obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            obscureText: _obscurePassword,
+                            validator: (value) {
+                              if (value == null ||
+                                  value.isEmpty ||
+                                  value.length < 6) {
+                                return 'Password must be at least 6 characters long';
+                              }
+                              return null;
+                            },
+                            onSaved: (value) {
+                              _password = value!;
+                            },
+                          ),
+                          const SizedBox(height: 30),
+                          ElevatedButton(
+                            onPressed: _signup,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text('Sign Up'),
+                          ),
+                          const SizedBox(height: 20),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child:
+                                const Text('Already have an account? Sign in'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
         ),
       ),
     );
